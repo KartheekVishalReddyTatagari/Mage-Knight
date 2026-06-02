@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rules-engine:
+    name: Rules Engine (lint + typecheck + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install rules engine
+        run: pip install -e packages/rules[dev] ruff mypy pytest pytest-cov
+      - name: Lint
+        run: ruff check packages/rules/src
+      - name: Type check
+        run: mypy packages/rules/src
+      - name: Test + coverage
+        run: |
+          cd packages/rules
+          pytest --cov=mk_rules --cov-fail-under=80 -v
+
+  server:
+    name: Server (lint + test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: mk_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install
+        run: |
+          pip install -e packages/rules
+          pip install -e apps/server
+      - name: Lint
+        run: ruff check apps/server/src
+      - name: Test
+        run: pytest apps/server/tests -v
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:test@localhost/mk_test
+          REDIS_URL:    redis://localhost:6379
+
+  web:
+    name: Web Client (lint + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Install
+        run:  cd apps/web && npm install
+      - name: Lint
+        run:  cd apps/web && npm run lint
+      - name: Build
+        run:  cd apps/web && npm run build

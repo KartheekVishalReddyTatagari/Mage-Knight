@@ -1,0 +1,96 @@
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Theme variables ─────────────────────────────────────────────────────────*/
+:root {
+  --bg:          #07071a;
+  --bg-surface:  #0e0e24;
+  --bg-card:     #14142e;
+  --bg-elevated: #1c1c3c;
+  --accent:      #7c3aed;
+  --accent-glow: rgba(124,58,237,0.35);
+  --gold:        #f59e0b;
+  --gold-dim:    #92600a;
+  --green:       #10b981;
+  --red:         #ef4444;
+  --text:        #eeeef8;
+  --text-dim:    #8888aa;
+  --text-muted:  #44445a;
+  --border:      rgba(255,255,255,0.06);
+  --border-glow: rgba(124,58,237,0.5);
+  --radius:      10px;
+  --radius-sm:   6px;
+}
+
+/* ── Body ────────────────────────────────────────────────────────────────────*/
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────*/
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────────*/
+input {
+  width: 100%;
+  padding: 10px 14px;
+  margin: 6px 0 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+/* ── Labels ──────────────────────────────────────────────────────────────────*/
+label { font-size: 12px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────*/
+button { cursor: pointer; font-family: inherit; }
+button[type=submit], .btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  width: 100%;
+  margin-top: 4px;
+  transition: opacity 0.2s, transform 0.1s;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.4);
+}
+button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
+button[type=submit]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ── Animations ──────────────────────────────────────────────────────────────*/
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+@keyframes float-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes fame-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+  50%       { box-shadow: 0 0 16px rgba(245,158,11,0.8); }
+}
+
+.animate-in   { animation: float-up 0.25s ease; }
+.modal-in     { animation: modal-in 0.2s ease; }
+.pulse-enemy  { animation: pulse-red 1.6s ease-in-out infinite; }

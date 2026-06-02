@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install the rules engine package first (it changes less often)
+COPY packages/rules /app/rules
+RUN pip install -e /app/rules
+
+# Install server dependencies
+COPY apps/server/pyproject.toml /app/server/pyproject.toml
+WORKDIR /app/server
+RUN pip install -e .
+
+# Copy server source
+COPY apps/server /app/server
+COPY packages/content /app/content
+
+EXPOSE 8000
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

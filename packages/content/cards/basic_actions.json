@@ -1,0 +1,66 @@
+[
+  {
+    "id": "march",
+    "name": "March",
+    "color": "WHITE",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_movement", "amount": 2 }],
+    "powered_effect": [{ "type": "add_movement", "amount": 4 }]
+  },
+  {
+    "id": "concentration",
+    "name": "Concentration",
+    "color": "WHITE",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_movement", "amount": 2 }],
+    "powered_effect": [{ "type": "add_influence", "amount": 2 }]
+  },
+  {
+    "id": "rage",
+    "name": "Rage",
+    "color": "RED",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_attack", "amount": 2 }],
+    "powered_effect": [{ "type": "add_attack", "amount": 4 }]
+  },
+  {
+    "id": "swiftness",
+    "name": "Swiftness",
+    "color": "GREEN",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_block", "amount": 2 }],
+    "powered_effect": [{ "type": "add_attack", "amount": 3 }]
+  },
+  {
+    "id": "determination",
+    "name": "Determination",
+    "color": "BLUE",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_attack", "amount": 2 }],
+    "powered_effect": [{ "type": "add_block", "amount": 3 }]
+  },
+  {
+    "id": "promise",
+    "name": "Promise",
+    "color": "WHITE",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_influence", "amount": 2 }],
+    "powered_effect": [{ "type": "add_influence", "amount": 4 }]
+  },
+  {
+    "id": "improvisation",
+    "name": "Improvisation",
+    "color": "GOLD",
+    "cost": 0,
+    "basic_effect":   [{ "type": "any_basic", "amount": 3 }],
+    "powered_effect": [{ "type": "any_powered", "amount": 4 }]
+  },
+  {
+    "id": "threatening_aura",
+    "name": "Threatening Aura",
+    "color": "RED",
+    "cost": 0,
+    "basic_effect":   [{ "type": "add_influence", "amount": 2 }, { "type": "reputation_change", "amount": -1 }],
+    "powered_effect": [{ "type": "add_influence", "amount": 5 }, { "type": "reputation_change", "amount": -1 }]
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "tile_01",
+    "type": "country",
+    "hexes": [
+      { "offset": [0,0], "terrain": "PLAINS" },
+      { "offset": [1,0], "terrain": "FOREST" },
+      { "offset": [0,1], "terrain": "PLAINS" },
+      { "offset": [-1,1], "terrain": "HILLS" },
+      { "offset": [-1,0], "terrain": "FOREST" },
+      { "offset": [0,-1], "terrain": "PLAINS" },
+      { "offset": [1,-1], "terrain": "PLAINS" }
+    ],
+    "default_encounters": ["orc_grunt"]
+  },
+  {
+    "id": "tile_02",
+    "type": "country",
+    "hexes": [
+      { "offset": [0,0], "terrain": "HILLS" },
+      { "offset": [1,0], "terrain": "MOUNTAINS" },
+      { "offset": [0,1], "terrain": "HILLS" },
+      { "offset": [-1,1], "terrain": "PLAINS" },
+      { "offset": [-1,0], "terrain": "PLAINS" },
+      { "offset": [0,-1], "terrain": "FOREST" },
+      { "offset": [1,-1], "terrain": "HILLS" }
+    ],
+    "default_encounters": ["wolf_rider", "orc_grunt"]
+  },
+  {
+    "id": "tile_03",
+    "type": "core",
+    "hexes": [
+      { "offset": [0,0], "terrain": "PLAINS" },
+      { "offset": [1,0], "terrain": "FOREST" },
+      { "offset": [0,1], "terrain": "SWAMP" },
+      { "offset": [-1,1], "terrain": "SWAMP" },
+      { "offset": [-1,0], "terrain": "FOREST" },
+      { "offset": [0,-1], "terrain": "PLAINS" },
+      { "offset": [1,-1], "terrain": "LAKE" }
+    ],
+    "default_encounters": ["guardian_golem"]
+  }
+]

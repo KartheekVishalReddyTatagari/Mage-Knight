@@ -1,0 +1,50 @@
+[
+  {
+    "id": "orc_grunt",
+    "name": "Orc Grunt",
+    "attack": 3,
+    "armor": 3,
+    "fame_reward": 2,
+    "abilities": []
+  },
+  {
+    "id": "orc_warrior",
+    "name": "Orc Warrior",
+    "attack": 4,
+    "armor": 4,
+    "fame_reward": 3,
+    "abilities": ["brutal"]
+  },
+  {
+    "id": "orc_shaman",
+    "name": "Orc Shaman",
+    "attack": 2,
+    "armor": 3,
+    "fame_reward": 3,
+    "abilities": ["fire"]
+  },
+  {
+    "id": "wolf_rider",
+    "name": "Wolf Rider",
+    "attack": 3,
+    "armor": 2,
+    "fame_reward": 2,
+    "abilities": ["swift"]
+  },
+  {
+    "id": "guardian_golem",
+    "name": "Guardian Golem",
+    "attack": 4,
+    "armor": 5,
+    "fame_reward": 4,
+    "abilities": ["fortified"]
+  },
+  {
+    "id": "ice_witch",
+    "name": "Ice Witch",
+    "attack": 3,
+    "armor": 3,
+    "fame_reward": 4,
+    "abilities": ["ice", "swift"]
+  }
+]
