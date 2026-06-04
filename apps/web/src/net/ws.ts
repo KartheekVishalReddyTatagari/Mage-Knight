@@ -7,68 +7,90 @@
  * always has to ask first.
  *
  * USAGE in a React component:
- *   const { send, lastMessage } = useGameSocket(sessionId)
- *
- * TODO (TASK T-04-02): wire this into the Game page component.
+ *   const { connected, send } = useGameSocket(sessionId, enabled, onMessage)
  */
-import { useEffect, useRef, useState } from 'react'
-import { getToken } from './api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getToken, getUsername } from './api'
 
 const WS_BASE = 'ws://localhost:8000/ws'
 const PROTOCOL_VERSION = 1
+const MAX_RECONNECT_DELAY = 8000
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HOOK  (a React hook is just a function starting with "use")
-// ─────────────────────────────────────────────────────────────────────────────
+export function useGameSocket(
+  sessionId: string | undefined,
+  enabled = true,
+  onMessage?: (frame: any) => void,
+) {
+  const wsRef          = useRef<WebSocket | null>(null)
+  const shouldReconnect = useRef(true)
+  const reconnectDelay  = useRef(1000)
+  const onMessageRef    = useRef(onMessage)
+  const [connected, setConnected] = useState(false)
 
-export function useGameSocket(sessionId: string | undefined) {
-  const wsRef = useRef<WebSocket | null>(null)
-  const [connected,   setConnected]   = useState(false)
-  const [lastMessage, setLastMessage] = useState<any>(null)
+  // Keep callback ref current without re-triggering connection useEffect
+  useEffect(() => { onMessageRef.current = onMessage }, [onMessage])
 
   useEffect(() => {
-    if (!sessionId) return
+    if (!sessionId || !enabled) return
 
-    const token = getToken()
-    const url   = `${WS_BASE}/${sessionId}?token=${token}`
-    const ws    = new WebSocket(url)
-    wsRef.current = ws
+    shouldReconnect.current = true
+    reconnectDelay.current  = 1000
 
-    ws.onopen = () => {
-      setConnected(true)
-      console.log(`[WS] Connected to session ${sessionId}`)
-    }
+    function connect() {
+      const token = getToken()
+      if (!token || !shouldReconnect.current) return
 
-    ws.onmessage = (event) => {
-      try {
-        const frame = JSON.parse(event.data)
-        setLastMessage(frame)
-      } catch {
-        console.warn('[WS] Could not parse message:', event.data)
+      const username = getUsername() ?? 'Knight'
+      const url = `${WS_BASE}/${sessionId}?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`
+      const ws = new WebSocket(url)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        setConnected(true)
+        reconnectDelay.current = 1000
+        console.log(`[WS] Connected to session ${sessionId}`)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const frame = JSON.parse(event.data)
+          onMessageRef.current?.(frame)
+        } catch {
+          console.warn('[WS] Could not parse message:', event.data)
+        }
+      }
+
+      ws.onclose = () => {
+        setConnected(false)
+        console.log('[WS] Disconnected')
+        if (shouldReconnect.current) {
+          const delay = reconnectDelay.current
+          reconnectDelay.current = Math.min(delay * 2, MAX_RECONNECT_DELAY)
+          console.log(`[WS] Reconnecting in ${delay}ms…`)
+          setTimeout(connect, delay)
+        }
+      }
+
+      ws.onerror = () => {
+        console.error('[WS] Connection error')
       }
     }
 
-    ws.onclose = () => {
-      setConnected(false)
-      console.log('[WS] Disconnected')
-      // TODO: attempt reconnect after delay (FR-MP-06)
+    connect()
+
+    return () => {
+      shouldReconnect.current = false
+      wsRef.current?.close()
     }
+  }, [sessionId, enabled])
 
-    ws.onerror = (err) => {
-      console.error('[WS] Error:', err)
-    }
-
-    return () => ws.close()   // cleanup when component unmounts
-  }, [sessionId])
-
-  function send(type: string, payload: Record<string, unknown> = {}) {
+  const send = useCallback((type: string, payload: Record<string, unknown> = {}) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.warn('[WS] Not connected — cannot send', type)
       return
     }
-    const frame = { v: PROTOCOL_VERSION, type, ...payload }
-    wsRef.current.send(JSON.stringify(frame))
-  }
+    wsRef.current.send(JSON.stringify({ v: PROTOCOL_VERSION, type, ...payload }))
+  }, []) // wsRef is stable, so send is stable too
 
-  return { connected, lastMessage, send }
+  return { connected, send }
 }

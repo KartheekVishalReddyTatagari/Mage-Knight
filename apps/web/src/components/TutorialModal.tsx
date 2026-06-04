@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react'
 
 interface Props { onClose: () => void }
 
-type Tab = 'quick' | 'movement' | 'combat' | 'cards' | 'progression'
+type Tab = 'quick' | 'movement' | 'combat' | 'cards' | 'progression' | 'multiplayer' | 'items'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'quick',       label: 'Quick Start', icon: '⚡' },
-  { id: 'movement',    label: 'Movement',    icon: '👣' },
-  { id: 'combat',      label: 'Combat',      icon: '⚔' },
-  { id: 'cards',       label: 'Cards',       icon: '🃏' },
-  { id: 'progression', label: 'Levelling',   icon: '🌟' },
+  { id: 'quick',       label: 'Quick Start',  icon: '⚡' },
+  { id: 'movement',    label: 'Movement',     icon: '👣' },
+  { id: 'combat',      label: 'Combat',       icon: '⚔' },
+  { id: 'cards',       label: 'Cards',        icon: '🃏' },
+  { id: 'progression', label: 'Levelling',    icon: '🌟' },
+  { id: 'items',       label: 'Items',        icon: '🎒' },
+  { id: 'multiplayer', label: 'Co-op',        icon: '👥' },
 ]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -50,6 +52,90 @@ function StatBadge({ label, color, children }: { label: string; color: string; c
 }
 
 const CONTENT: Record<Tab, React.ReactNode> = {
+  items: (
+    <>
+      <Section title="Consumable items">
+        <Tip icon="🎒" text="Items are consumables that give one-time boosts. You can hold any number at once." />
+        <Tip icon="🗺" text="Explore new non-enemy tiles — 12% chance to find an item hidden in the terrain." />
+        <Tip icon="⚔" text="Defeat enemies — 25–50% chance they drop an item (higher rings = rarer loot)." />
+      </Section>
+
+      <Section title="Using items">
+        <Tip icon="🃏" text="In combat: open your item bag below the card hand. Combat items (⚔) are active; map items are greyed out." />
+        <Tip icon="🗺" text="On the map: items appear to the right of your card hand. Map items (🌿) are active; combat items are greyed out." />
+        <Tip icon="👆" text="Click an item icon to consume it instantly. Items are gone after use — no undo." />
+      </Section>
+
+      <Section title="Item types by rarity">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { rarity: 'Common',   color: '#6b7280', icon: '🧪', ex: 'Health Potion, Swift Boots, War Elixir, Iron Tonic',  note: 'Reliably useful — small boosts' },
+            { rarity: 'Uncommon', color: '#3b82f6', icon: '💠', ex: 'Mana Crystal, Rage Stone, Smoke Bomb',               note: 'Situational power spikes' },
+            { rarity: 'Rare',     color: '#f59e0b', icon: '✨', ex: 'Dragon Blood, Arcane Mirror, Elixir of Power',        note: 'Game-changing in tough fights' },
+          ].map(r => (
+            <div key={r.rarity} style={{
+              background: `linear-gradient(135deg,${r.color}18,transparent)`,
+              border: `1px solid ${r.color}33`, borderRadius: 8, padding: '10px 14px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                <span style={{ fontSize: 14 }}>{r.icon}</span>
+                <strong style={{ color: r.color, fontSize: 12 }}>{r.rarity}</strong>
+                <span style={{ fontSize: 11, color: '#666' }}>{r.note}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#6060a0' }}>e.g. {r.ex}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </>
+  ),
+
+  multiplayer: (
+    <>
+      <div style={{
+        background: 'linear-gradient(135deg,rgba(6,182,212,0.08),rgba(14,116,144,0.04))',
+        border: '1px solid rgba(6,182,212,0.25)',
+        borderRadius: 10, padding: '14px 18px', marginBottom: 20,
+        fontSize: 13, color: '#c0e8f0', lineHeight: 1.7,
+      }}>
+        <strong style={{ color: '#06b6d4' }}>Co-op Quest</strong> lets two Mage Knights
+        share a map and take turns exploring. Work together to push deeper into enemy territory
+        than you could alone.
+      </div>
+
+      <Section title="Starting a co-op game">
+        <Tip icon="1️⃣" text='In the Lobby, click "Co-op Quest (2 players)" to create a session. You are taken to the game page immediately.' />
+        <Tip icon="2️⃣" text='The game shows a "Waiting for companion" screen. Share the page URL with your partner.' />
+        <Tip icon="3️⃣" text='Your partner opens the Lobby, sees your session listed as "Co-op 1/2", and clicks Join →.' />
+        <Tip icon="4️⃣" text="The game starts automatically when both players are connected. The host (creator) goes first." />
+      </Section>
+
+      <Section title="Turn-based rules">
+        <Tip icon="⚡" text='Only the active player can move, play cards, fight, or use items. The HUD shows "YOUR TURN" or "THEIR TURN".' />
+        <Tip icon="🔄" text='Click End Turn when you are done. Move points reset and the turn passes to your companion.' />
+        <Tip icon="📍" text="Your companion's position appears on the map as a teal knight (♘). Watch where they explore." />
+        <Tip icon="🗺" text="The map is shared — when either player reveals tiles, both players see them immediately." />
+      </Section>
+
+      <Section title="Separate inventories">
+        <Tip icon="🃏" text="Each player has their own deck, hand, discard pile, and loot cards. You build independently." />
+        <Tip icon="🎒" text="Items are personal — you cannot trade or share items with your companion." />
+        <Tip icon="⚔" text="You each fight your own enemies. You cannot help each other in combat." />
+        <Tip icon="⭐" text="Fame and levelling are tracked separately. Racing to Level 7 first is a friendly competition." />
+      </Section>
+
+      <Section title="Cooperation & strategy">
+        <div style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.15)', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontSize: 12, color: '#c0e8f0', lineHeight: 2 }}>
+            <div>📡 Coordinate verbally — decide who covers which part of the map.</div>
+            <div>🛡 One player draws enemies, the other explores safely behind them.</div>
+            <div>⚔ Take turns fighting tough ring-4 and ring-5 enemies to share the risk.</div>
+            <div>💔 If either player is knocked out, call it a team loss — protect each other!</div>
+          </div>
+        </div>
+      </Section>
+    </>
+  ),
   quick: (
     <>
       <div style={{
@@ -118,7 +204,7 @@ const CONTENT: Record<Tab, React.ReactNode> = {
       <Section title="Turn flow">
         <Tip icon="1️⃣" text="Move to one or more adjacent tiles (enemies stop you)." />
         <Tip icon="2️⃣" text="Resolve any combat that triggers when you enter enemy tiles." />
-        <Tip icon="3️⃣" text="Play support cards from your hand (e.g. March for movement)." />
+        <Tip icon="3️⃣" text="Use items from your bag (🎒) to boost moves or heal before ending your turn." />
         <Tip icon="4️⃣" text="Click End Turn → your full hand is shuffled and redrawn." />
       </Section>
     </>
@@ -162,7 +248,7 @@ const CONTENT: Record<Tab, React.ReactNode> = {
           {[
             { color: '#ef4444', icon: '⚔', name: 'Attack cards', ex: 'Rage, Threatening Aura', desc: 'Add to your Attack total in combat. Needed to pierce enemy armor.' },
             { color: '#3b82f6', icon: '🛡', name: 'Block cards',  ex: 'Determination, Promise',  desc: 'Add to your Block total. Reduces wounds you take from enemy attacks.' },
-            { color: '#10b981', icon: '👣', name: 'Move cards',   ex: 'March, Swiftness',         desc: 'Primarily for movement. Some also provide minor combat bonuses.' },
+            { color: '#10b981', icon: '💚', name: 'Heal cards',   ex: 'Tranquility',              desc: 'Remove wounds when played in combat — rare and precious.' },
             { color: '#a855f7', icon: '✦',  name: 'Balanced cards', ex: 'Concentration, Improvisation', desc: 'Provide a bit of everything — flexible in any situation.' },
           ].map(c => (
             <div key={c.name} style={{

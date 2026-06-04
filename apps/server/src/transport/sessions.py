@@ -61,7 +61,7 @@ def create_session(
         host_id=user_id,
         state="LOBBY",
         player_count=1,
-        max_players=1 if body.mode == "solo" else 4,
+        max_players=1 if body.mode == "solo" else 2 if body.mode == "coop" else 4,
     )
     db.add(gs)
     db.commit()

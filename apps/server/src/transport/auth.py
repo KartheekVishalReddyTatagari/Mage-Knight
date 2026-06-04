@@ -34,6 +34,7 @@ class TokenResponse(BaseModel):
     access_token:  str
     refresh_token: str
     token_type:    str = "bearer"
+    username:      str = ""
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=TokenResponse)
@@ -53,6 +54,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
+        username=user.username,
     )
 
 
@@ -64,6 +66,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
+        username=user.username,
     )
 
 

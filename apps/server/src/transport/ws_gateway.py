@@ -6,97 +6,203 @@ CONCEPT: WebSocket keeps an open connection between browser and server.
 Unlike HTTP (request → response → close), WebSocket stays open so the
 server can PUSH updates to all players whenever state changes.
 
-Flow:
-  1. Client connects:  ws://localhost:8000/ws/{session_id}?token=<jwt>
-  2. Server authenticates the JWT token from the query param
-  3. Client sends action frames: {"v":1, "type":"move", "destination":{"q":1,"r":0}}
-  4. Server applies action, broadcasts result to all session participants
+Frame protocol:
+  Client → Server:
+    { v:1, type:"end_turn" }
+    { v:1, type:"state_sync", state:{pos,fame,...}, tiles:[...] }
+    { v:1, type:"full_sync", tiles:[...], state:{...} }   — host sharing map
+    { v:1, type:"chat", text:"..." }
+
+  Server → Client:
+    { type:"session_info", player_id, session_id, current_turn, started, players }
+    { type:"player_joined", player_id, username, player_count, all_players }
+    { type:"game_start", current_turn, players }
+    { type:"opponent_state", from, state, tiles? }
+    { type:"full_sync", from, tiles, state }
+    { type:"turn_changed", current_turn, turn_count }
+    { type:"player_disconnected", player_id, username }
+    { type:"chat", from, player_id, text }
+    { type:"error", code, message }
 """
 import json
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from jose import JWTError
+
+from src.application.auth_service import decode_token
 
 router = APIRouter()
 
-# Active connections per session — session_id → list of WebSockets
-# TODO (TASK T-02-03): replace with Redis pub/sub for multi-instance support
-_connections: dict[str, list[WebSocket]] = {}
+# session_id → {player_id: WebSocket}
+_connections: dict[str, dict[str, WebSocket]] = {}
 
-MIN_PROTOCOL_VERSION = 1   # reject clients older than this (NFR-PORT-03)
+# session_id → session metadata dict
+_sessions: dict[str, dict] = {}
+
+MIN_PROTOCOL_VERSION = 1
 
 
 @router.websocket("/{session_id}")
 async def websocket_endpoint(session_id: str, websocket: WebSocket):
-    """
-    Main WebSocket handler. Each connected player has one WebSocket here.
-
-    STEPS TO IMPLEMENT (TASK T-03-02):
-    1. websocket.accept() — accept the connection
-    2. Authenticate: read token from query param, verify JWT
-       HINT: websocket.query_params.get("token")
-    3. Register this websocket in _connections[session_id]
-    4. Enter a receive loop:
-         while True:
-             data = await websocket.receive_text()
-             frame = json.loads(data)
-             # validate frame version
-             # route to the right handler based on frame["type"]
-    5. On WebSocketDisconnect: remove from _connections, handle disconnect
-    """
     await websocket.accept()
 
-    # TODO: authenticate
-    player_id = "placeholder"   # replace with real JWT verification
+    # 1. Authenticate JWT from query param
+    token = websocket.query_params.get("token", "")
+    try:
+        payload = decode_token(token)
+        player_id = payload["sub"]
+    except (JWTError, KeyError, Exception):
+        await websocket.send_text(json.dumps({
+            "type": "error", "code": "AUTH_FAILED",
+            "message": "Invalid or missing token",
+        }))
+        await websocket.close()
+        return
 
-    # Register connection
+    # Username from query param (frontend passes it after login)
+    username = websocket.query_params.get("username", player_id[:8])
+
+    # 2. Register connection (overwrites stale socket on reconnect)
     if session_id not in _connections:
-        _connections[session_id] = []
-    _connections[session_id].append(websocket)
+        _connections[session_id] = {}
+    _connections[session_id][player_id] = websocket
 
+    # 3. Init session meta
+    if session_id not in _sessions:
+        _sessions[session_id] = {
+            "players": [], "usernames": {},
+            "current_turn": None, "started": False, "turn_count": 0,
+        }
+
+    meta = _sessions[session_id]
+    if player_id not in meta["players"]:
+        meta["players"].append(player_id)
+    meta["usernames"][player_id] = username
+
+    def player_list() -> list:
+        return [
+            {"id": pid, "username": meta["usernames"].get(pid, pid[:8])}
+            for pid in meta["players"]
+        ]
+
+    # 4. Send session_info FIRST so the client knows their player_id
+    await websocket.send_text(json.dumps({
+        "type": "session_info",
+        "player_id": player_id,
+        "username": username,
+        "session_id": session_id,
+        "current_turn": meta.get("current_turn"),
+        "started": meta["started"],
+        "players": player_list(),
+    }))
+
+    # 5. Broadcast player_joined to everyone (including the joining player)
+    await _broadcast(session_id, {
+        "type": "player_joined",
+        "player_id": player_id,
+        "username": username,
+        "player_count": len(meta["players"]),
+        "all_players": player_list(),
+    })
+
+    # 6. Auto-start when 2 players are present and game hasn't started
+    if len(meta["players"]) >= 2 and not meta["started"]:
+        meta["started"] = True
+        meta["current_turn"] = meta["players"][0]
+        await _broadcast(session_id, {
+            "type": "game_start",
+            "current_turn": meta["current_turn"],
+            "players": player_list(),
+        })
+
+    # 7. Main receive loop
     try:
         while True:
             raw = await websocket.receive_text()
             frame = json.loads(raw)
 
-            # Version check (NFR-PORT-03)
             if frame.get("v", 0) < MIN_PROTOCOL_VERSION:
                 await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "code": "VERSION_MISMATCH",
-                    "message": f"Client too old. Minimum version: {MIN_PROTOCOL_VERSION}",
+                    "type": "error", "code": "VERSION_MISMATCH",
                 }))
                 continue
 
-            # TODO: validate frame schema with Pydantic
-            # TODO: route frame["type"] to the correct application service
-            # e.g. if frame["type"] == "move": call session_actor.submit(MoveAction(...))
+            meta = _sessions.get(session_id, {})
+            frame_type = frame.get("type")
 
-            await _broadcast(session_id, {"type": "ack", "for": frame.get("type")})
+            if frame_type == "end_turn":
+                # Validate it's this player's turn, then rotate
+                if meta.get("current_turn") == player_id:
+                    players = meta["players"]
+                    idx = players.index(player_id)
+                    next_player = players[(idx + 1) % len(players)]
+                    meta["current_turn"] = next_player
+                    meta["turn_count"] = meta.get("turn_count", 0) + 1
+                    await _broadcast(session_id, {
+                        "type": "turn_changed",
+                        "current_turn": next_player,
+                        "turn_count": meta["turn_count"],
+                    })
+
+            elif frame_type == "state_sync":
+                # Relay this player's public state + tiles to all others
+                await _broadcast_except(session_id, player_id, {
+                    "type": "opponent_state",
+                    "from": player_id,
+                    "state": frame.get("state", {}),
+                    "tiles": frame.get("tiles"),
+                })
+
+            elif frame_type == "full_sync":
+                # Host sharing their complete map + initial state with joining player
+                await _broadcast_except(session_id, player_id, {
+                    "type": "full_sync",
+                    "from": player_id,
+                    "tiles": frame.get("tiles", []),
+                    "state": frame.get("state", {}),
+                })
+
+            elif frame_type == "chat":
+                text = str(frame.get("text", ""))[:200]
+                await _broadcast(session_id, {
+                    "type": "chat",
+                    "from": username,
+                    "player_id": player_id,
+                    "text": text,
+                })
 
     except WebSocketDisconnect:
-        _connections[session_id].remove(websocket)
-        # TODO: start disconnect grace timer (FR-MP-06)
+        if session_id in _connections:
+            _connections[session_id].pop(player_id, None)
+        await _broadcast_except(session_id, player_id, {
+            "type": "player_disconnected",
+            "player_id": player_id,
+            "username": username,
+        })
 
 
 async def _broadcast(session_id: str, message: dict[str, Any]) -> None:
-    """Send a message to ALL connected players in a session."""
+    """Send to ALL connected players in a session."""
     dead = []
-    for ws in _connections.get(session_id, []):
+    for pid, ws in list(_connections.get(session_id, {}).items()):
         try:
             await ws.send_text(json.dumps(message))
         except Exception:
-            dead.append(ws)
-    # Clean up broken connections
-    for ws in dead:
-        _connections[session_id].remove(ws)
+            dead.append(pid)
+    for pid in dead:
+        _connections[session_id].pop(pid, None)
 
 
-async def _send_to_player(session_id: str, player_id: str, message: dict) -> None:
-    """
-    Send a message to ONE specific player.
-    Used for private information (your hand, your level-up offer) — NFR-SEC-04.
-    TODO: need to track which WebSocket belongs to which player_id
-    """
-    # TODO: implement player-specific sending
-    pass
+async def _broadcast_except(session_id: str, exclude: str, message: dict[str, Any]) -> None:
+    """Send to all players EXCEPT one (used for state relay to avoid echo)."""
+    dead = []
+    for pid, ws in list(_connections.get(session_id, {}).items()):
+        if pid == exclude:
+            continue
+        try:
+            await ws.send_text(json.dumps(message))
+        except Exception:
+            dead.append(pid)
+    for pid in dead:
+        _connections[session_id].pop(pid, None)

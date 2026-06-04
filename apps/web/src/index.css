@@ -91,6 +91,19 @@ button[type=submit]:disabled { opacity: 0.5; cursor: not-allowed; transform: non
   50%       { box-shadow: 0 0 16px rgba(245,158,11,0.8); }
 }
 
-.animate-in   { animation: float-up 0.25s ease; }
-.modal-in     { animation: modal-in 0.2s ease; }
-.pulse-enemy  { animation: pulse-red 1.6s ease-in-out infinite; }
+@keyframes spin-dash {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -40; }
+}
+@keyframes enemy-pulse {
+  0%, 100% { opacity: 1;   filter: drop-shadow(0 0 3px #ef4444); }
+  50%       { opacity: 0.7; filter: drop-shadow(0 0 8px #ef4444); }
+}
+@keyframes player-glow {
+  0%, 100% { r: 14; opacity: 0.2; }
+  50%       { r: 18; opacity: 0.35; }
+}
+
+.animate-in  { animation: float-up 0.25s ease; }
+.modal-in    { animation: modal-in 0.2s ease; }
+.pulse-enemy { animation: pulse-red 1.6s ease-in-out infinite; }

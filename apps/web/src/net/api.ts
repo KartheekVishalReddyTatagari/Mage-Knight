@@ -1,6 +1,7 @@
 const BASE = 'http://localhost:8000/api'
 
 let accessToken: string | null = null
+let currentUsername: string | null = null
 
 function authHeaders(): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
@@ -31,17 +32,24 @@ async function get<T>(path: string): Promise<T> {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function login(email: string, password: string): Promise<void> {
-  const tokens = await post<{ access_token: string }>('/auth/login', { email, password })
+  const tokens = await post<{ access_token: string; username: string }>('/auth/login', { email, password })
   accessToken = tokens.access_token
+  currentUsername = tokens.username ?? null
 }
 
 export async function register(username: string, email: string, password: string): Promise<void> {
-  const tokens = await post<{ access_token: string }>('/auth/register', { username, email, password })
+  const tokens = await post<{ access_token: string; username: string }>('/auth/register', { username, email, password })
   accessToken = tokens.access_token
+  currentUsername = tokens.username ?? username
 }
 
 export function logout(): void {
   accessToken = null
+  currentUsername = null
+}
+
+export function getUsername(): string | null {
+  return currentUsername
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
