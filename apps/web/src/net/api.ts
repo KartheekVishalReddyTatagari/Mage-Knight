@@ -69,3 +69,27 @@ export async function joinSession(sessionId: string) {
 export function getToken(): string | null {
   return accessToken
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export async function adminListSessions() {
+  return get<unknown[]>('/admin/sessions')
+}
+
+export async function adminDeleteSession(sessionId: string) {
+  const res = await fetch(`${BASE}/admin/sessions/${sessionId}`, {
+    method: 'DELETE', headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Unknown error' }))
+    throw new Error(err.detail ?? `HTTP ${res.status}`)
+  }
+}
+
+export async function adminListUsers() {
+  return get<unknown[]>('/admin/users')
+}
+
+export async function adminPromote(email: string, isAdmin: boolean) {
+  return post<unknown>('/admin/promote', { email, is_admin: isAdmin })
+}

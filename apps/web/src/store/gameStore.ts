@@ -36,42 +36,20 @@ export interface CombatState {
   lootCard: CardData | null; itemDrop: ItemData | null
 }
 
+/** Public view of the other player — used to render their avatar on the map. */
 export interface OpponentState {
-  playerId: string
-  username: string
-  pos: HexCoord
-  fame: number
-  level: number
-  wounds: number
-  handSizeMax: number
-  movePoints: number
-  movePointsMax: number
+  username: string; pos: HexCoord
+  fame: number; level: number; wounds: number
+  handSizeMax: number; movePoints: number; movePointsMax: number
   itemCount: number
 }
 
-// ── WebSocket bridge ──────────────────────────────────────────────────────────
-// Game.tsx sets this reference so store actions can push state updates to the WS.
-
-let _wsSend: ((type: string, payload: Record<string, unknown>) => void) | null = null
-export function setGlobalWsSend(fn: typeof _wsSend) { _wsSend = fn }
-
-function syncStateToWs() {
-  if (!_wsSend) return
-  const s = useGameStore.getState()
-  if (s.mode !== 'coop') return
-  _wsSend('state_sync', {
-    state: {
-      pos:           s.playerPos,
-      fame:          s.fame,
-      level:         s.level,
-      wounds:        s.wounds,
-      handSizeMax:   s.handSizeMax,
-      movePoints:    s.movePoints,
-      movePointsMax: s.movePointsMax,
-      itemCount:     s.items.length,
-    },
-    tiles: s.tiles,
-  })
+/** Full private state snapshot for local co-op seat-swapping. */
+export interface PlayerSlot {
+  playerPos: HexCoord; hand: CardData[]; discard: CardData[]
+  items: ItemData[]; fame: number; level: number; wounds: number
+  handSizeMax: number; movePoints: number; movePointsMax: number
+  combat: CombatState | null; gameOver: boolean; levelUpMessage: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -195,15 +173,13 @@ const ITEM_POOL = {
   rare:     ['dragon_blood', 'arcane_mirror', 'elixir_of_power'] as const,
 }
 
-function makeItem(defId: string): ItemData {
-  return { ...ITEM_DEFS[defId], id: uid() }
-}
+function makeItem(defId: string): ItemData { return { ...ITEM_DEFS[defId], id: uid() } }
 
 function explorationDrop(ring: number): ItemData | null {
   if (Math.random() > 0.12) return null
   const r = Math.random()
-  if (ring <= 1)             return makeItem(rnd([...ITEM_POOL.common]))
-  if (ring <= 2 || r < 0.6) return makeItem(rnd([...ITEM_POOL.common]))
+  if (ring <= 1)              return makeItem(rnd([...ITEM_POOL.common]))
+  if (ring <= 2 || r < 0.6)  return makeItem(rnd([...ITEM_POOL.common]))
   if (ring <= 4 || r < 0.85) return makeItem(rnd([...ITEM_POOL.uncommon]))
   return makeItem(rnd([...ITEM_POOL.rare]))
 }
@@ -269,31 +245,33 @@ const BASE_MOVE = 4
 
 interface GameStore {
   sessionId: string | null; playerPos: HexCoord; tiles: TileData[]
-  hand: CardData[]; discard: CardData[]
-  items: ItemData[]
+  hand: CardData[]; discard: CardData[]; items: ItemData[]
   fame: number; level: number; wounds: number; handSizeMax: number
   movePoints: number; movePointsMax: number
   combat: CombatState | null; gameOver: boolean; levelUpMessage: string | null
   turnCount: number; log: string[]
 
-  // Multiplayer state
-  mode: 'solo' | 'coop'
-  myPlayerId: string | null
-  currentTurnPlayerId: string | null
-  opponent: OpponentState | null
+  // Game mode
+  mode: 'solo' | 'local'
+
+  // Local co-op (pass-and-play)
+  activeSeat: 1 | 2
+  savedState: PlayerSlot | null      // the other seat's saved state
+  pendingHandoff: boolean            // show "pass device" overlay
+  localSeatNames: [string, string]
+  opponent: OpponentState | null     // other seat's public info (for map display)
 
   setSession: (id: string) => void
   movePlayer: (coord: HexCoord) => void
   playCardInCombat: (instanceId: string) => void
   useItem: (id: string) => void
-  resolveCombat: () => void; dismissCombat: () => void
-  endTurn: () => void; restartGame: () => void; addLog: (msg: string) => void
-
-  // Multiplayer actions
-  initMultiplayer: (myPlayerId: string, firstTurnId: string, opp: { id: string; username: string }) => void
-  syncOpponent: (from: string, state: any, tiles?: any[]) => void
-  replaceTiles: (tiles: TileData[]) => void
-  handleTurnChanged: (newTurnId: string) => void
+  resolveCombat: () => void
+  dismissCombat: () => void
+  endTurn: () => void
+  restartGame: () => void
+  addLog: (msg: string) => void
+  initLocalCoop: (name1: string, name2: string) => void
+  confirmHandoff: () => void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -302,64 +280,51 @@ export const useGameStore = create<GameStore>((set, get) => {
   const init = buildStartingState()
   return {
     sessionId: null, playerPos: { q: 0, r: 0 },
-    tiles: init.tiles, hand: init.hand, discard: init.discard,
-    items: [],
+    tiles: init.tiles, hand: init.hand, discard: init.discard, items: [],
     fame: 0, level: 1, wounds: 0, handSizeMax: 5,
     movePoints: BASE_MOVE, movePointsMax: BASE_MOVE,
     combat: null, gameOver: false, levelUpMessage: null,
     turnCount: 0, log: ['The quest begins. Explore the world!'],
 
-    // Multiplayer defaults
-    mode: 'solo', myPlayerId: null, currentTurnPlayerId: null, opponent: null,
+    mode: 'solo',
+    activeSeat: 1, savedState: null, pendingHandoff: false,
+    localSeatNames: ['Player 1', 'Player 2'], opponent: null,
 
     setSession: (id) => set({ sessionId: id }),
     addLog: (msg) => set(s => ({ log: [msg, ...s.log].slice(0, 25) })),
 
-    // ── Multiplayer actions ───────────────────────────────────────────────────
+    // ── Local co-op ───────────────────────────────────────────────────────────
 
-    initMultiplayer: (myPlayerId, firstTurnId, opp) => {
+    initLocalCoop: (name1, name2) => {
+      const init1 = buildStartingState()
+      const init2 = buildStartingState()
+      const p2Start: HexCoord = { q: 1, r: -1 }
+      const p2Slot: PlayerSlot = {
+        playerPos: p2Start, hand: init2.hand, discard: init2.discard, items: [],
+        fame: 0, level: 1, wounds: 0, handSizeMax: 5,
+        movePoints: BASE_MOVE, movePointsMax: BASE_MOVE,
+        combat: null, gameOver: false, levelUpMessage: null,
+      }
       set({
-        mode: 'coop',
-        myPlayerId,
-        currentTurnPlayerId: firstTurnId,
+        playerPos: { q: 0, r: 0 }, tiles: init1.tiles,
+        hand: init1.hand, discard: init1.discard, items: [],
+        fame: 0, level: 1, wounds: 0, handSizeMax: 5,
+        movePoints: BASE_MOVE, movePointsMax: BASE_MOVE,
+        combat: null, gameOver: false, levelUpMessage: null, turnCount: 0,
+        mode: 'local', activeSeat: 1, savedState: p2Slot,
+        pendingHandoff: false, localSeatNames: [name1, name2],
         opponent: {
-          playerId: opp.id, username: opp.username,
-          pos: { q: 0, r: 0 }, fame: 0, level: 1, wounds: 0,
+          username: name2, pos: p2Start, fame: 0, level: 1, wounds: 0,
           handSizeMax: 5, movePoints: BASE_MOVE, movePointsMax: BASE_MOVE, itemCount: 0,
         },
-      })
-      get().addLog(`⚔ Co-op quest begins! Playing with ${opp.username}`)
-    },
-
-    syncOpponent: (from, state, tiles) => {
-      set(cur => {
-        const existingOpp = cur.opponent
-        if (!existingOpp) return {}
-        const newOpp: OpponentState = { ...existingOpp, ...state, playerId: from }
-        // Merge tiles: adopt any tiles the opponent has revealed that we haven't
-        const newTiles = tiles
-          ? cur.tiles.map(local => {
-              const remote = (tiles as any[]).find(
-                rt => rt.coord.q === local.coord.q && rt.coord.r === local.coord.r
-              )
-              if (!remote || !remote.revealed) return local
-              if (remote.revealed && !local.revealed) return { ...local, ...remote, id: local.id }
-              // If both revealed, sync enemy state (enemy may have been defeated)
-              if (local.revealed) return { ...local, hasEnemy: remote.hasEnemy, enemyName: remote.enemyName, enemyAttack: remote.enemyAttack, enemyArmor: remote.enemyArmor, enemyFame: remote.enemyFame }
-              return local
-            })
-          : cur.tiles
-        return { opponent: newOpp, tiles: newTiles }
+        log: [`${name1} & ${name2} begin their co-op quest! ${name1} goes first.`],
       })
     },
 
-    replaceTiles: (tiles) => set({ tiles }),
-
-    handleTurnChanged: (newTurnId) => {
-      set({ currentTurnPlayerId: newTurnId })
+    confirmHandoff: () => {
+      set({ pendingHandoff: false })
       const s = get()
-      const isMyTurn = newTurnId === s.myPlayerId
-      get().addLog(isMyTurn ? '⚡ Your turn!' : `⏳ ${s.opponent?.username ?? 'Opponent'}'s turn`)
+      get().addLog(`${s.localSeatNames[s.activeSeat - 1]}'s turn — good luck!`)
     },
 
     // ── Game actions ──────────────────────────────────────────────────────────
@@ -367,20 +332,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     movePlayer: (coord) => {
       const s = get()
       if (s.combat || s.gameOver) return
-      // Block moves when it's not your turn in coop
-      if (s.mode === 'coop' && s.myPlayerId !== s.currentTurnPlayerId) return
       if (!isNeighbor(s.playerPos, coord)) return
       const tile = s.tiles.find(t => t.coord.q === coord.q && t.coord.r === coord.r)
       if (!tile || tile.terrain === 'LAKE') return
-
       const cost = TERRAIN_MOVE_COST[tile.terrain]
-      if (s.movePoints < cost) {
-        get().addLog(`⛔ Not enough moves (need ${cost}, have ${s.movePoints})`)
-        return
-      }
-
+      if (s.movePoints < cost) { get().addLog(`⛔ Not enough moves (need ${cost}, have ${s.movePoints})`); return }
       const isNewTile = !tile.revealed
-
       set(cur => ({
         playerPos: coord,
         movePoints: cur.movePoints - cost,
@@ -391,39 +348,24 @@ export const useGameStore = create<GameStore>((set, get) => {
         }),
       }))
       get().addLog(`Moved to ${tile.terrain.toLowerCase()} [-${cost} move]`)
-
-      // Item discovery on first visit to non-enemy tiles
-      if (isNewTile && !tile.hasEnemy) {  // LAKE already filtered above
+      if (isNewTile && !tile.hasEnemy) {
         const ring = Math.round(hexDist({ q: 0, r: 0 }, coord))
         const drop = explorationDrop(ring)
-        if (drop) {
-          set(cur => ({ items: [...cur.items, drop] }))
-          get().addLog(`🎁 Found a ${drop.name} while exploring!`)
-        }
+        if (drop) { set(cur => ({ items: [...cur.items, drop] })); get().addLog(`🎁 Found a ${drop.name}!`) }
       }
-
       if (tile.hasEnemy) {
-        set({
-          combat: {
-            enemy: {
-              name: tile.enemyName ?? 'Unknown', attack: tile.enemyAttack ?? 2,
-              armor: tile.enemyArmor ?? 2, fame: tile.enemyFame ?? 1,
-            },
-            phase: 'FIGHTING', playerAttack: 0, playerBlock: 0,
-            result: null, fameGained: 0, woundsTaken: 0, lootCard: null, itemDrop: null,
-          },
-        })
+        set({ combat: {
+          enemy: { name: tile.enemyName ?? 'Unknown', attack: tile.enemyAttack ?? 2, armor: tile.enemyArmor ?? 2, fame: tile.enemyFame ?? 1 },
+          phase: 'FIGHTING', playerAttack: 0, playerBlock: 0,
+          result: null, fameGained: 0, woundsTaken: 0, lootCard: null, itemDrop: null,
+        }})
         get().addLog(`⚔ ${tile.enemyName} appears!`)
       }
-
-      // Sync updated state (position + revealed tiles) to opponent
-      if (get().mode === 'coop') syncStateToWs()
     },
 
     playCardInCombat: (instanceId) => {
       const s = get()
       if (!s.combat || s.combat.phase !== 'FIGHTING') return
-      if (s.mode === 'coop' && s.myPlayerId !== s.currentTurnPlayerId) return
       const card = s.hand.find(c => c.instanceId === instanceId)
       if (!card) return
       const healAmt = card.special === 'heal1' ? 1 : 0
@@ -431,131 +373,63 @@ export const useGameStore = create<GameStore>((set, get) => {
         hand: cur.hand.filter(c => c.instanceId !== instanceId),
         discard: [...cur.discard, card],
         wounds: Math.max(0, cur.wounds - healAmt),
-        combat: cur.combat ? {
-          ...cur.combat,
-          playerAttack: cur.combat.playerAttack + card.attack,
-          playerBlock:  cur.combat.playerBlock  + card.block,
-        } : null,
+        combat: cur.combat
+          ? { ...cur.combat, playerAttack: cur.combat.playerAttack + card.attack, playerBlock: cur.combat.playerBlock + card.block }
+          : null,
       }))
       if (healAmt > 0) get().addLog('💚 Tranquility — healed 1 wound!')
     },
 
     useItem: (id) => {
       const s = get()
-      if (s.mode === 'coop' && s.myPlayerId !== s.currentTurnPlayerId) return
       const item = s.items.find(i => i.id === id)
       if (!item) return
       const inCombat = !!s.combat && s.combat.phase === 'FIGHTING'
       if (item.useIn === 'combat'    && !inCombat) return
       if (item.useIn === 'overworld' && inCombat)  return
-
       set(cur => ({ items: cur.items.filter(i => i.id !== id) }))
-
       switch (item.effect) {
-        case 'heal':
-          set(cur => ({ wounds: Math.max(0, cur.wounds - item.value) }))
-          get().addLog(`🧪 ${item.name} — healed ${item.value} wound(s)!`)
-          break
-        case 'move':
-          set(cur => ({ movePoints: cur.movePoints + item.value }))
-          get().addLog(`👟 ${item.name} — +${item.value} move points!`)
-          break
-        case 'atk_flat':
-          if (inCombat) set(cur => ({
-            combat: cur.combat
-              ? { ...cur.combat, playerAttack: cur.combat.playerAttack + item.value }
-              : null,
-          }))
-          get().addLog(`⚗️ ${item.name} — +${item.value} attack!`)
-          break
-        case 'blk_flat':
-          if (inCombat) set(cur => ({
-            combat: cur.combat
-              ? { ...cur.combat, playerBlock: cur.combat.playerBlock + item.value }
-              : null,
-          }))
-          get().addLog(`🫙 ${item.name} — +${item.value} block!`)
-          break
-        case 'atk_blk':
-          if (inCombat) set(cur => ({
-            combat: cur.combat
-              ? {
-                  ...cur.combat,
-                  playerAttack: cur.combat.playerAttack + item.value,
-                  playerBlock:  cur.combat.playerBlock  + item.value,
-                }
-              : null,
-          }))
-          get().addLog(`✨ ${item.name} — +${item.value} ATK & BLK!`)
-          break
-        case 'atk_mult':
-          if (inCombat) set(cur => ({
-            combat: cur.combat
-              ? { ...cur.combat, playerAttack: Math.round(cur.combat.playerAttack * item.value) }
-              : null,
-          }))
-          get().addLog(`🔴 ${item.name} — Attack doubled!`)
-          break
-        case 'blk_max':
-          if (inCombat && s.combat) set(cur => ({
-            combat: cur.combat
-              ? { ...cur.combat, playerBlock: s.combat!.enemy.attack }
-              : null,
-          }))
-          get().addLog(`💨 ${item.name} — All enemy damage negated!`)
-          break
+        case 'heal':     set(cur => ({ wounds: Math.max(0, cur.wounds - item.value) })); get().addLog(`🧪 ${item.name} — healed ${item.value}!`); break
+        case 'move':     set(cur => ({ movePoints: cur.movePoints + item.value })); get().addLog(`👟 ${item.name} — +${item.value} moves!`); break
+        case 'atk_flat': if (inCombat) set(cur => ({ combat: cur.combat ? { ...cur.combat, playerAttack: cur.combat.playerAttack + item.value } : null })); get().addLog(`⚗️ ${item.name} — +${item.value} ATK!`); break
+        case 'blk_flat': if (inCombat) set(cur => ({ combat: cur.combat ? { ...cur.combat, playerBlock: cur.combat.playerBlock + item.value } : null })); get().addLog(`🫙 ${item.name} — +${item.value} BLK!`); break
+        case 'atk_blk':  if (inCombat) set(cur => ({ combat: cur.combat ? { ...cur.combat, playerAttack: cur.combat.playerAttack + item.value, playerBlock: cur.combat.playerBlock + item.value } : null })); get().addLog(`✨ ${item.name} — +${item.value} ATK & BLK!`); break
+        case 'atk_mult': if (inCombat) set(cur => ({ combat: cur.combat ? { ...cur.combat, playerAttack: Math.round(cur.combat.playerAttack * item.value) } : null })); get().addLog(`🔴 ${item.name} — Attack doubled!`); break
+        case 'blk_max':  if (inCombat && s.combat) set(cur => ({ combat: cur.combat ? { ...cur.combat, playerBlock: s.combat!.enemy.attack } : null })); get().addLog(`💨 ${item.name} — All damage negated!`); break
       }
-      if (get().mode === 'coop') syncStateToWs()
     },
 
     resolveCombat: () => {
       const s = get()
       if (!s.combat) return
-      if (s.mode === 'coop' && s.myPlayerId !== s.currentTurnPlayerId) return
       const { enemy, playerAttack, playerBlock } = s.combat
       const won         = playerAttack >= enemy.armor
       const unblocked   = Math.max(0, enemy.attack - playerBlock)
       const woundsTaken = won ? 0 : unblocked
-
-      const lootCard: CardData | null = won
-        ? { ...rnd(LOOT_POOL), instanceId: uid() }
-        : null
-
-      const ring = Math.round(hexDist({ q: 0, r: 0 }, s.playerPos))
-      const itemDrop: ItemData | null = won ? enemyDrop(ring) : null
-
-      const newFame        = won ? s.fame + enemy.fame : s.fame
-      const newWounds      = s.wounds + woundsTaken
-      const newLevel       = levelForFame(newFame)
-      const leveledUp      = newLevel > s.level
-      const evenLevel      = leveledUp && newLevel % 2 === 0
-      const newHandSizeMax = s.handSizeMax + (evenLevel ? 1 : 0)
-      const newMoveMax     = s.movePointsMax + (evenLevel ? 1 : 0)
-      const gameOver       = newWounds >= newHandSizeMax
-      const lvlMsg         = leveledUp
-        ? `Level ${newLevel}! ${evenLevel ? '+1 hand size & +1 move' : 'Growing stronger'}`
-        : null
-
+      const lootCard    = won ? { ...rnd(LOOT_POOL), instanceId: uid() } as CardData : null
+      const ring        = Math.round(hexDist({ q: 0, r: 0 }, s.playerPos))
+      const itemDrop    = won ? enemyDrop(ring) : null
+      const newFame     = won ? s.fame + enemy.fame : s.fame
+      const newWounds   = s.wounds + woundsTaken
+      const newLevel    = levelForFame(newFame)
+      const leveledUp   = newLevel > s.level
+      const evenLevel   = leveledUp && newLevel % 2 === 0
+      const newHSMax    = s.handSizeMax + (evenLevel ? 1 : 0)
+      const newMoveMax  = s.movePointsMax + (evenLevel ? 1 : 0)
+      const gameOver    = newWounds >= newHSMax
+      const lvlMsg      = leveledUp ? `Level ${newLevel}! ${evenLevel ? '+1 hand size & +1 move' : 'Growing stronger'}` : null
       set({
-        fame: newFame, level: newLevel,
-        wounds: newWounds, handSizeMax: newHandSizeMax,
-        movePointsMax: newMoveMax, gameOver,
-        levelUpMessage: lvlMsg,
+        fame: newFame, level: newLevel, wounds: newWounds,
+        handSizeMax: newHSMax, movePointsMax: newMoveMax, gameOver, levelUpMessage: lvlMsg,
         discard: lootCard ? [...s.discard, lootCard] : s.discard,
         items: itemDrop ? [...s.items, itemDrop] : s.items,
-        combat: {
-          ...s.combat, phase: 'RESULT',
-          result: won ? 'WIN' : 'LOSE',
-          fameGained: won ? enemy.fame : 0, woundsTaken, lootCard, itemDrop,
-        },
+        combat: { ...s.combat, phase: 'RESULT', result: won ? 'WIN' : 'LOSE', fameGained: won ? enemy.fame : 0, woundsTaken, lootCard, itemDrop },
       })
       if (won)       get().addLog(`✅ Defeated ${enemy.name}! +${enemy.fame} fame`)
       if (itemDrop)  get().addLog(`🎁 Looted: ${itemDrop.name}!`)
-      else           get().addLog(`💀 Failed — took ${woundsTaken} wound(s)`)
+      else if (!won) get().addLog(`💀 Failed — took ${woundsTaken} wound(s)`)
       if (leveledUp) get().addLog(`🌟 LEVEL UP → ${newLevel}!`)
       if (gameOver)  get().addLog('☠ Knocked out!')
-
-      if (get().mode === 'coop') syncStateToWs()
     },
 
     dismissCombat: () => {
@@ -564,18 +438,14 @@ export const useGameStore = create<GameStore>((set, get) => {
       set(cur => ({
         combat: null, levelUpMessage: null,
         tiles: won
-          ? cur.tiles.map(t =>
-              t.coord.q === cur.playerPos.q && t.coord.r === cur.playerPos.r
-                ? { ...t, hasEnemy: false } : t)
+          ? cur.tiles.map(t => t.coord.q === cur.playerPos.q && t.coord.r === cur.playerPos.r ? { ...t, hasEnemy: false } : t)
           : cur.tiles,
       }))
-      if (get().mode === 'coop') syncStateToWs()
     },
 
     endTurn: () => {
       const s = get()
       if (s.combat || s.gameOver) return
-      if (s.mode === 'coop' && s.myPlayerId !== s.currentTurnPlayerId) return
       const newTurn = s.turnCount + 1
       let tiles = s.tiles
       if (newTurn % 10 === 0) {
@@ -584,38 +454,60 @@ export const useGameStore = create<GameStore>((set, get) => {
           const fromCenter = hexDist({ q: 0, r: 0 }, tile.coord)
           const fromPlayer = hexDist(s.playerPos, tile.coord)
           if (fromCenter < 2 || fromPlayer < 3) return tile
-          if (Math.random() < 0.45) {
-            const ring = Math.min(Math.round(fromCenter), 5)
-            return { ...tile, ...makeEnemyTile(ring) }
-          }
+          if (Math.random() < 0.45) return { ...tile, ...makeEnemyTile(Math.min(Math.round(fromCenter), 5)) }
           return tile
         })
-        get().addLog('⚠ Enemies have respawned across the land!')
+        get().addLog('⚠ Enemies have respawned!')
       }
       const all      = shuffle([...s.hand, ...s.discard])
       const newHand  = all.slice(0, s.handSizeMax)
       const newDiscard = all.slice(s.handSizeMax)
+
+      if (s.mode === 'local') {
+        const currentSlot: PlayerSlot = {
+          playerPos: s.playerPos, hand: newHand, discard: newDiscard, items: s.items,
+          fame: s.fame, level: s.level, wounds: s.wounds, handSizeMax: s.handSizeMax,
+          movePoints: s.movePointsMax, movePointsMax: s.movePointsMax,
+          combat: null, gameOver: s.gameOver, levelUpMessage: null,
+        }
+        const otherSlot = s.savedState!
+        const nextSeat  = (s.activeSeat === 1 ? 2 : 1) as 1 | 2
+        const myName    = s.localSeatNames[s.activeSeat - 1]
+        const otherName = s.localSeatNames[nextSeat - 1]
+        set({
+          playerPos: otherSlot.playerPos, hand: otherSlot.hand, discard: otherSlot.discard,
+          items: otherSlot.items, fame: otherSlot.fame, level: otherSlot.level,
+          wounds: otherSlot.wounds, handSizeMax: otherSlot.handSizeMax,
+          movePoints: otherSlot.movePoints, movePointsMax: otherSlot.movePointsMax,
+          combat: otherSlot.combat, gameOver: otherSlot.gameOver, levelUpMessage: otherSlot.levelUpMessage,
+          savedState: currentSlot, activeSeat: nextSeat, pendingHandoff: true,
+          opponent: {
+            username: myName, pos: currentSlot.playerPos,
+            fame: currentSlot.fame, level: currentSlot.level,
+            wounds: currentSlot.wounds, handSizeMax: currentSlot.handSizeMax,
+            movePoints: currentSlot.movePoints, movePointsMax: currentSlot.movePointsMax,
+            itemCount: currentSlot.items.length,
+          },
+          tiles, turnCount: newTurn,
+        })
+        get().addLog(`${myName} ends turn — passing to ${otherName}…`)
+        return
+      }
+
       set({ hand: newHand, discard: newDiscard, tiles, turnCount: newTurn, movePoints: s.movePointsMax })
       get().addLog(`Turn ${newTurn} — ${newHand.length} cards, ${s.movePointsMax} moves`)
-
-      // In coop: tell server to switch turns; optimistically update local turn
-      if (s.mode === 'coop') {
-        if (_wsSend) _wsSend('end_turn', {})
-        set(cur => ({ currentTurnPlayerId: cur.opponent?.playerId ?? null }))
-        syncStateToWs()
-      }
     },
 
     restartGame: () => {
       const init = buildStartingState()
       set({
-        playerPos: { q:0, r:0 }, tiles: init.tiles,
-        hand: init.hand, discard: init.discard, items: [],
+        playerPos: { q:0, r:0 }, tiles: init.tiles, hand: init.hand, discard: init.discard, items: [],
         fame: 0, level: 1, wounds: 0, handSizeMax: 5,
         movePoints: BASE_MOVE, movePointsMax: BASE_MOVE,
         combat: null, gameOver: false, levelUpMessage: null,
         turnCount: 0, log: ['New game — good luck!'],
-        mode: 'solo', myPlayerId: null, currentTurnPlayerId: null, opponent: null,
+        mode: 'solo', activeSeat: 1, savedState: null,
+        pendingHandoff: false, localSeatNames: ['Player 1', 'Player 2'], opponent: null,
       })
     },
   }

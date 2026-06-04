@@ -5,7 +5,7 @@ from jose import jwt
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-SECRET_KEY    = "CHANGE_ME_IN_PRODUCTION_USE_SECRETS_TOKEN_HEX_32"
+SECRET_KEY    = "dev-secret-key-change-before-sharing"
 ALGORITHM     = "HS256"
 ACCESS_EXPIRE  = timedelta(minutes=15)
 REFRESH_EXPIRE = timedelta(days=7)

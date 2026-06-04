@@ -10,15 +10,17 @@ import LoginPage    from './pages/Login'
 import LobbyPage    from './pages/Lobby'
 import GamePage     from './pages/Game'
 import ProfilePage  from './pages/Profile'
+import AdminPage    from './pages/Admin'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/"               element={<Navigate to="/login" replace />} />
-      <Route path="/login"          element={<LoginPage />} />
-      <Route path="/lobby"          element={<LobbyPage />} />
+      <Route path="/"                element={<Navigate to="/login" replace />} />
+      <Route path="/login"           element={<LoginPage />} />
+      <Route path="/lobby"           element={<LobbyPage />} />
       <Route path="/game/:sessionId" element={<GamePage />} />
-      <Route path="/profile"        element={<ProfilePage />} />
+      <Route path="/profile"         element={<ProfilePage />} />
+      <Route path="/admin"           element={<AdminPage />} />
     </Routes>
   )
 }

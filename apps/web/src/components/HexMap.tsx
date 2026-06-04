@@ -250,7 +250,7 @@ export function HexMap() {
         }}>
           {tiles.map(tile => {
             const isPlayer   = tile.coord.q === playerPos.q && tile.coord.r === playerPos.r
-            const isOpponent = mode === 'coop' && !!opponent &&
+            const isOpponent = mode === 'local' && !!opponent &&
                                tile.coord.q === opponent.pos.q && tile.coord.r === opponent.pos.r
             const cost     = TERRAIN_MOVE_COST[tile.terrain]
             const canMove  = !combat && isNeighbor(playerPos, tile.coord)

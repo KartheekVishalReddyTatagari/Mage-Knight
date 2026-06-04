@@ -1,4 +1,4 @@
-import { useGameStore, OpponentState } from '../store/gameStore'
+import { useGameStore } from '../store/gameStore'
 
 const FAME_THRESHOLDS = [0, 3, 8, 14, 21, 30, 40]
 
@@ -81,13 +81,12 @@ function PlayerPanel({
 export function PlayerHUD({ onTutorial }: Props) {
   const {
     fame, level, wounds, handSizeMax, playerPos, log,
-    mode, opponent, myPlayerId, currentTurnPlayerId,
+    mode, opponent, activeSeat, localSeatNames,
   } = useGameStore()
 
-  const isMyTurn    = mode === 'solo' || myPlayerId === currentTurnPlayerId
-  const isCoop      = mode === 'coop'
-  const myUsername  = 'You'
-  const oppUsername = opponent?.username ?? 'Companion'
+  const isCoop      = mode === 'local'
+  const myUsername  = mode === 'local' ? localSeatNames[activeSeat - 1] : 'You'
+  const oppUsername = opponent?.username ?? localSeatNames[activeSeat === 1 ? 1 : 0]
 
   return (
     <div style={{
@@ -114,49 +113,22 @@ export function PlayerHUD({ onTutorial }: Props) {
       {isCoop ? (
         /* ── Co-op: show both players side by side ── */
         <>
+          {/* Active player */}
           <div style={{ position: 'relative' }}>
-            <PlayerPanel
-              label={myUsername} accent="#a855f7"
-              fame={fame} level={level} wounds={wounds} handSizeMax={handSizeMax}
-              isMe
-            />
-            {/* MY TURN indicator */}
-            {isMyTurn && (
-              <div style={{
-                position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(168,85,247,0.9)', borderRadius: 99,
-                padding: '1px 8px', fontSize: 8, fontWeight: 800,
-                color: 'white', letterSpacing: '0.08em', whiteSpace: 'nowrap',
-              }}>
-                YOUR TURN
-              </div>
-            )}
+            <PlayerPanel label={myUsername} accent="#a855f7" fame={fame} level={level} wounds={wounds} handSizeMax={handSizeMax} isMe />
+            <div style={{
+              position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(168,85,247,0.9)', borderRadius: 99,
+              padding: '1px 8px', fontSize: 8, fontWeight: 800,
+              color: 'white', letterSpacing: '0.08em', whiteSpace: 'nowrap',
+            }}>ACTIVE</div>
           </div>
 
           <div style={{ fontSize: 18, color: '#2a2a4a', flexShrink: 0 }}>vs</div>
 
-          {opponent ? (
-            <div style={{ position: 'relative' }}>
-              <PlayerPanel
-                label={oppUsername} accent="#06b6d4"
-                fame={opponent.fame} level={opponent.level}
-                wounds={opponent.wounds} handSizeMax={opponent.handSizeMax}
-                isMe={false}
-              />
-              {/* THEIR TURN indicator */}
-              {!isMyTurn && (
-                <div style={{
-                  position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
-                  background: 'rgba(6,182,212,0.9)', borderRadius: 99,
-                  padding: '1px 8px', fontSize: 8, fontWeight: 800,
-                  color: 'white', letterSpacing: '0.08em', whiteSpace: 'nowrap',
-                }}>
-                  THEIR TURN
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: '#2a2a4a' }}>Waiting for companion…</div>
+          {/* Other seat */}
+          {opponent && (
+            <PlayerPanel label={oppUsername} accent="#06b6d4" fame={opponent.fame} level={opponent.level} wounds={opponent.wounds} handSizeMax={opponent.handSizeMax} isMe={false} />
           )}
         </>
       ) : (

@@ -10,6 +10,7 @@ class UserModel(Base):
     email         = Column(String, unique=True, nullable=False, index=True)
     username      = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    is_admin      = Column(Integer, default=0, nullable=False)   # 0 = regular, 1 = admin
     created_at    = Column(DateTime, server_default=func.now())
 
 

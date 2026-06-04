@@ -40,20 +40,10 @@ export default function LobbyPage() {
     }
   }
 
-  async function handleCreateCoop() {
-    try {
-      const result = await api.createSession({ mode: 'coop', scenario_id: 'tutorial' }) as SessionSummary
-      navigate(`/game/${result.session_id}?mode=coop`)
-    } catch (err: any) {
-      setError(err.message ?? 'Could not create session')
-    }
-  }
-
   async function handleJoin(s: SessionSummary) {
     try {
       await api.joinSession(s.session_id)
-      const modeParam = s.mode !== 'solo' ? `?mode=${s.mode}` : ''
-      navigate(`/game/${s.session_id}${modeParam}`)
+      navigate(`/game/${s.session_id}`)
     } catch (err: any) {
       setError(err.message ?? 'Could not join session')
     }
@@ -81,18 +71,31 @@ export default function LobbyPage() {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{
-            margin: '0 0 6px',
-            background: 'linear-gradient(135deg,#a855f7,#7c3aed)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            fontSize: 28, fontWeight: 800,
-          }}>
-            ♞ Mage Knight Online
-          </h1>
-          <p style={{ margin: 0, color: '#4040a0', fontSize: 13 }}>
-            Join a quest or begin a new adventure.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+          <div>
+            <h1 style={{
+              margin: '0 0 6px',
+              background: 'linear-gradient(135deg,#a855f7,#7c3aed)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              fontSize: 28, fontWeight: 800,
+            }}>
+              ♞ Mage Knight Online
+            </h1>
+            <p style={{ margin: 0, color: '#4040a0', fontSize: 13 }}>
+              Join a quest or begin a new adventure.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/admin')}
+            title="Admin Panel"
+            style={{
+              background: 'rgba(245,158,11,0.08)', color: '#f59e0b',
+              border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8,
+              padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+            }}
+          >
+            ⚙ Admin
+          </button>
         </div>
 
         {/* Create buttons */}
@@ -119,23 +122,23 @@ export default function LobbyPage() {
           </button>
 
           <button
-            onClick={handleCreateCoop}
+            onClick={() => navigate('/game/local?mode=local')}
             style={{
               flex: 1,
-              background: 'linear-gradient(135deg,rgba(6,182,212,0.12),rgba(14,116,144,0.06))',
-              border: '1px solid rgba(6,182,212,0.3)', borderRadius: 12,
+              background: 'linear-gradient(135deg,rgba(168,85,247,0.08),rgba(52,211,153,0.04))',
+              border: '1px solid rgba(52,211,153,0.25)', borderRadius: 12,
               padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
               transition: 'border-color 0.15s, background 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(6,182,212,0.6)')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(6,182,212,0.3)')}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(52,211,153,0.55)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(52,211,153,0.25)')}
           >
-            <div style={{ fontSize: 24, marginBottom: 6 }}>⚔</div>
-            <div style={{ fontWeight: 700, color: '#06b6d4', fontSize: 15, marginBottom: 3 }}>
-              Co-op Quest (2 players)
+            <div style={{ fontSize: 24, marginBottom: 6 }}>🛡</div>
+            <div style={{ fontWeight: 700, color: '#34d399', fontSize: 15, marginBottom: 3 }}>
+              Local Co-op (same device)
             </div>
-            <div style={{ fontSize: 12, color: '#305060' }}>
-              Share a map with a companion — turn-based
+            <div style={{ fontSize: 12, color: '#1a4a3a' }}>
+              Pass-and-play — no internet required
             </div>
           </button>
         </div>
