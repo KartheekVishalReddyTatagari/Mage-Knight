@@ -7,9 +7,13 @@ HOW TO RUN:
 
 Then open: http://localhost:8000/docs
 """
+import uuid
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text as _text
 
+from src.application.auth_service import pwd_context as _pwd
 from src.infrastructure.database import Base, engine
 from src.infrastructure import models  # noqa: F401
 from src.transport.auth import router as auth_router
@@ -25,7 +29,6 @@ app = FastAPI(
 Base.metadata.create_all(bind=engine)
 
 # Safe migration: add is_admin column to databases that predate it
-from sqlalchemy import text as _text
 with engine.connect() as _conn:
     try:
         _conn.execute(_text("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"))
@@ -34,8 +37,6 @@ with engine.connect() as _conn:
         pass  # column already exists
 
 # Seed / sync default admin account (admin@gmail.com / admin123)
-import uuid as _uuid
-from src.application.auth_service import pwd_context as _pwd
 _ADMIN_HASH = _pwd.hash("admin123")
 with engine.connect() as _conn:
     _exists = _conn.execute(_text("SELECT id FROM users WHERE email='admin@gmail.com'")).fetchone()
@@ -43,8 +44,8 @@ with engine.connect() as _conn:
         _conn.execute(_text(
             "INSERT INTO users (id, email, username, password_hash, is_admin) "
             "VALUES (:id, :email, :username, :hash, 1)"
-        ), {"id": str(_uuid.uuid4()), "email": "admin@gmail.com",
-            "username": "admin", "hash": _ADMIN_HASH, "email": "admin@gmail.com"})
+        ), {"id": str(uuid.uuid4()), "email": "admin@gmail.com",
+            "username": "admin", "hash": _ADMIN_HASH})
     else:
         # Always sync password so changing it here takes effect immediately
         _conn.execute(_text(

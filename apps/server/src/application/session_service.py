@@ -2,11 +2,7 @@
 Session lifecycle — create, join, leave, resume.
 (FR-SES-01 through FR-SES-07)
 """
-import uuid
-from typing import Optional
-
-from mk_rules.rng import new_session_seed
-from mk_rules.state import Session, SessionMode, SessionState, Map, MageKnight
+from mk_rules.state import Session, Map
 
 
 class SessionService:

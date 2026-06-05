@@ -34,6 +34,14 @@ show_missing = true
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint.per-file-ignores]
+# Stub files kept for student exercises — unused imports are intentional hints
+"src/mk_rules/engine.py"      = ["F401"]
+"src/mk_rules/actions.py"     = ["F401"]
+"src/mk_rules/events.py"      = ["F401"]
+"src/mk_rules/movement.py"    = ["F401"]
+"src/mk_rules/progression.py" = ["F401"]
+
 [tool.mypy]
 strict = true
 python_version = "3.12"

@@ -8,8 +8,6 @@ Every function here must preserve that invariant.
 """
 from __future__ import annotations
 
-import random
-
 from mk_rules.rng import Rng
 from mk_rules.state import (
     CardInstance, DeckZone, DeckZoneKind, MageKnight

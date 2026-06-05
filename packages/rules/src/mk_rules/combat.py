@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from mk_rules.state import Combat, CombatPhase, EnemyUnit, MageKnight, Session
+from mk_rules.state import Combat, CombatPhase, EnemyUnit, MageKnight
 
 
 # ─────────────────────────────────────────────────────────────────────────────

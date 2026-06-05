@@ -1,4 +1,3 @@
-import uuid
 from sqlalchemy import Column, String, Integer, DateTime, func
 from src.infrastructure.database import Base
 
