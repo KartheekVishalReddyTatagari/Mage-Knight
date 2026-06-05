@@ -1,0 +1,141 @@
+name: CD
+
+# Triggers on any version tag: git tag v1.0.0 && git push --tags
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create a GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build frontend ──────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: apps/web
+
+      - name: Build frontend (production)
+        run: npm run build
+        working-directory: apps/web
+
+      # ── Run CI checks before releasing ─────────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify server starts cleanly
+        run: |
+          pip install fastapi "uvicorn[standard]" "pydantic[email]" \
+                      sqlalchemy "passlib[argon2]" "python-jose[cryptography]"
+          cd apps/server && python -c "from src.main import app; print('OK')"
+
+      # ── Assemble the release bundle ─────────────────────────────────────────
+      - name: Assemble release directory
+        run: |
+          TAG=${{ github.ref_name }}
+          BUNDLE=dist/mage-knight-online
+
+          mkdir -p $BUNDLE/server $BUNDLE/web
+
+          # Server source
+          cp -r apps/server/src/         $BUNDLE/server/src/
+          cp    apps/server/pyproject.toml $BUNDLE/server/
+
+          # Rules engine (server dependency)
+          cp -r packages/rules/          $BUNDLE/rules/
+
+          # Frontend static build
+          cp -r apps/web/dist/*          $BUNDLE/web/
+
+          # One-click start script (Linux / macOS)
+          cat > $BUNDLE/start.sh << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -e
+          echo "=== Mage Knight Online ==="
+          echo "Installing Python dependencies..."
+          pip install -e rules
+          pip install fastapi "uvicorn[standard]" "pydantic[email]" \
+                      sqlalchemy "passlib[argon2]" "python-jose[cryptography]"
+          echo ""
+          echo "Starting server on http://localhost:8000"
+          echo "Open apps/web/dist/index.html in your browser OR run a static server."
+          echo ""
+          cd server && uvicorn src.main:app --port 8000
+          SCRIPT
+          chmod +x $BUNDLE/start.sh
+
+          # Windows helper
+          cat > $BUNDLE/start.bat << 'BATCH'
+          @echo off
+          echo === Mage Knight Online ===
+          echo Installing Python dependencies...
+          pip install -e rules
+          pip install fastapi uvicorn[standard] "pydantic[email]" sqlalchemy "passlib[argon2]" "python-jose[cryptography]"
+          echo Starting server on http://localhost:8000
+          cd server && uvicorn src.main:app --port 8000
+          BATCH
+
+          # README
+          cat > $BUNDLE/README.txt << 'README'
+          Mage Knight Online — $TAG
+
+          HOW TO RUN
+          ----------
+          Requirements: Python 3.12+, a modern web browser.
+
+          Linux / macOS:
+            bash start.sh
+
+          Windows:
+            start.bat
+
+          Then open:  http://localhost:5173  (if running the dev build)
+          Or serve the web/ folder with any static HTTP server:
+            npx serve web/
+
+          Default admin login: admin@gmail.com  /  admin123
+          README
+
+          # Zip the bundle
+          cd dist
+          zip -r mage-knight-online-${TAG}.zip mage-knight-online/
+
+      # ── Publish GitHub Release ──────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Mage Knight Online ${{ github.ref_name }}
+          body: |
+            ## Mage Knight Online ${{ github.ref_name }}
+
+            ### What's included
+            - Pre-built frontend (static HTML/CSS/JS in `web/`)
+            - FastAPI server (`server/`)
+            - Rules engine package (`rules/`)
+            - `start.sh` / `start.bat` one-click launchers
+
+            ### How to run
+            ```bash
+            unzip mage-knight-online-${{ github.ref_name }}.zip
+            cd mage-knight-online
+            bash start.sh
+            ```
+
+            Then open the `web/index.html` in your browser (or use `npx serve web/`).
+
+            **Admin login:** `admin@gmail.com` / `admin123`
+          files: dist/mage-knight-online-${{ github.ref_name }}.zip
+          generate_release_notes: true

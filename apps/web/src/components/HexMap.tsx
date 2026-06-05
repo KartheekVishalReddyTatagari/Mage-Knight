@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useGameStore, HexCoord, TileData, TERRAIN_MOVE_COST } from '../store/gameStore'
 
-const HEX_SIZE = 28
+const HEX_SIZE = 34
 const SQRT3 = Math.sqrt(3)
 
 const TERRAIN: Record<string, { fill: string; border: string; emoji: string }> = {
@@ -12,6 +12,7 @@ const TERRAIN: Record<string, { fill: string; border: string; emoji: string }> =
   LAKE:      { fill: '#0a1e50', border: '#1430a0', emoji: '🌊' },
   DESERT:    { fill: '#503810', border: '#906020', emoji: '🏜' },
   SWAMP:     { fill: '#162410', border: '#283c18', emoji: '🌾' },
+  CITY:      { fill: '#2a1c08', border: '#c2850a', emoji: '🏰' },
 }
 
 function hexToPixel(q: number, r: number) {
@@ -61,8 +62,8 @@ function HexTile({ tile, isPlayer, isOpponent, canMove, moveCost, onClick }: {
       <polygon
         points={hexPoints(x, y, inner)}
         fill={tile.revealed ? t.fill : '#080818'}
-        stroke={canMove ? '#f59e0b' : isPlayer ? '#c084fc' : tile.revealed ? t.border : '#181828'}
-        strokeWidth={canMove ? 2.5 : isPlayer ? 2.5 : 1}
+        stroke={canMove ? '#f59e0b' : isPlayer ? '#c084fc' : tile.isCity && tile.revealed ? '#c2850a' : tile.revealed ? t.border : '#181828'}
+        strokeWidth={canMove ? 2.5 : isPlayer ? 2.5 : tile.isCity && tile.revealed ? 2 : 1}
       />
 
       {/* Move highlight ring */}
@@ -113,23 +114,37 @@ function HexTile({ tile, isPlayer, isOpponent, canMove, moveCost, onClick }: {
         </g>
       )}
 
-      {/* Player avatar */}
+      {/* Player avatar — fantasy knight helmet */}
       {isPlayer && (
         <g style={{ pointerEvents: 'none' }}>
-          <circle cx={x} cy={y - 10} r={14} fill="rgba(139,92,246,0.2)"
+          {/* Glow ring */}
+          <circle cx={x} cy={y - 12} r={17} fill="rgba(168,85,247,0.18)"
             style={{ animation: 'player-glow 2s ease-in-out infinite' }} />
-          <circle cx={x} cy={y - 10} r={10} fill="url(#playerGrad)" stroke="#c084fc" strokeWidth={1.5} />
-          <text x={x} y={y - 5} textAnchor="middle" fontSize={11} fill="white">♞</text>
+          {/* Shield body */}
+          <ellipse cx={x} cy={y - 10} rx={13} ry={14} fill="url(#playerGrad)" stroke="#c084fc" strokeWidth={1.5} />
+          {/* Visor slit */}
+          <rect x={x - 6} y={y - 14} width={12} height={2.5} rx={1} fill="#c084fc" opacity={0.9} />
+          {/* Plume */}
+          <path d={`M${x},${y - 24} C${x - 4},${y - 30} ${x + 4},${y - 28} ${x},${y - 20}`}
+            fill="none" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" />
+          {/* Helmet visor bottom */}
+          <rect x={x - 5} y={y - 7} width={10} height={2} rx={1} fill="#c084fc" opacity={0.6} />
+          {/* Cross emblem */}
+          <rect x={x - 1} y={y - 5} width={2} height={8} rx={0.5} fill="rgba(255,255,255,0.7)" />
+          <rect x={x - 4} y={y - 3} width={8} height={2} rx={0.5} fill="rgba(255,255,255,0.7)" />
         </g>
       )}
 
-      {/* Opponent avatar (co-op) */}
+      {/* Opponent avatar (co-op) — cyan knight */}
       {isOpponent && !isPlayer && (
         <g style={{ pointerEvents: 'none' }}>
-          <circle cx={x + 12} cy={y - 8} r={12} fill="rgba(6,182,212,0.2)"
+          <circle cx={x + 14} cy={y - 10} r={14} fill="rgba(6,182,212,0.18)"
             style={{ animation: 'player-glow 2.4s ease-in-out infinite' }} />
-          <circle cx={x + 12} cy={y - 8} r={9} fill="url(#oppGrad)" stroke="#06b6d4" strokeWidth={1.5} />
-          <text x={x + 12} y={y - 3} textAnchor="middle" fontSize={10} fill="white">♘</text>
+          <ellipse cx={x + 14} cy={y - 8} rx={11} ry={12} fill="url(#oppGrad)" stroke="#06b6d4" strokeWidth={1.5} />
+          <rect x={x + 8} y={y - 12} width={12} height={2} rx={1} fill="#06b6d4" opacity={0.9} />
+          <path d={`M${x+14},${y - 20} C${x+10},${y - 26} ${x+18},${y - 24} ${x+14},${y-18}`}
+            fill="none" stroke="#34d399" strokeWidth={2} strokeLinecap="round" />
+          <rect x={x + 9} y={y - 5} width={10} height={2} rx={1} fill="#06b6d4" opacity={0.6} />
         </g>
       )}
     </g>
@@ -139,7 +154,7 @@ function HexTile({ tile, isPlayer, isOpponent, canMove, moveCost, onClick }: {
 export function HexMap() {
   const { tiles, playerPos, combat, movePlayer, movePoints, movePointsMax, opponent, mode } = useGameStore()
 
-  const VIEW_W = 700, VIEW_H = 520
+  const VIEW_W = 800, VIEW_H = 560
   const { x: px, y: py } = hexToPixel(playerPos.q, playerPos.r)
   const dx = VIEW_W / 2 - px
   const dy = VIEW_H / 2 - py
@@ -202,18 +217,23 @@ export function HexMap() {
         display: 'flex', flexDirection: 'column', gap: 3, zIndex: 10,
       }}>
         {[
-          { emoji: '🌿', label: 'Plains', cost: 1 },
-          { emoji: '🌲', label: 'Forest', cost: 2 },
-          { emoji: '⛰',  label: 'Hills',  cost: 2 },
-          { emoji: '🗻', label: 'Mountains', cost: 3 },
+          { emoji: '🌿', label: 'Plains',     cost: 1, note: '' },
+          { emoji: '🌲', label: 'Forest',     cost: 2, note: '' },
+          { emoji: '⛰',  label: 'Hills',      cost: 2, note: '' },
+          { emoji: '🗻', label: 'Mountains',  cost: 3, note: '' },
+          { emoji: '🏰', label: 'City',       cost: 1, note: '★ heal' },
         ].map(row => (
           <div key={row.label} style={{
             display: 'flex', alignItems: 'center', gap: 5,
-            background: 'rgba(0,0,0,0.6)', borderRadius: 5, padding: '2px 7px',
+            background: row.label === 'City' ? 'rgba(194,133,10,0.12)' : 'rgba(0,0,0,0.6)',
+            border: row.label === 'City' ? '1px solid rgba(194,133,10,0.25)' : 'none',
+            borderRadius: 5, padding: '2px 7px',
           }}>
             <span style={{ fontSize: 10 }}>{row.emoji}</span>
-            <span style={{ fontSize: 9, color: '#5a5a80' }}>{row.label}</span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', marginLeft: 'auto' }}>-{row.cost}</span>
+            <span style={{ fontSize: 9, color: row.label === 'City' ? '#f59e0b' : '#5a5a80' }}>{row.label}</span>
+            {row.note
+              ? <span style={{ fontSize: 9, color: '#4ade80', marginLeft: 'auto' }}>{row.note}</span>
+              : <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', marginLeft: 'auto' }}>-{row.cost}</span>}
           </div>
         ))}
       </div>
@@ -286,6 +306,7 @@ export function HexMap() {
           { color: '#f59e0b', label: 'Move here' },
           { color: '#ef4444', label: 'Enemy' },
           { color: '#c084fc', label: 'You' },
+          { color: '#c2850a', label: '🏰 City heals' },
         ].map(item => (
           <div key={item.label} style={{
             display: 'flex', alignItems: 'center', gap: 4,

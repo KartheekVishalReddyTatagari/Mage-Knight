@@ -191,8 +191,7 @@ class DeckZone:
             self.cards + (card,)      ← note the trailing comma — (card,) is a 1-element tuple
         Then wrap it in DeckZone(kind=self.kind, cards=...)
         """
-        # TODO: return DeckZone(kind=self.kind, cards=self.cards + (card,))
-        raise NotImplementedError
+        return DeckZone(kind=self.kind, cards=self.cards + (card,))
 
     def remove(self, instance_id: str) -> tuple[DeckZone, CardInstance]:
         """
@@ -205,8 +204,11 @@ class DeckZone:
           2. Build a new tuple excluding it:
              remaining = tuple(c for c in self.cards if c.instance_id != instance_id)
         """
-        # TODO: implement the find-and-remove logic
-        raise NotImplementedError
+        card = next((c for c in self.cards if c.instance_id == instance_id), None)
+        if card is None:
+            raise ValueError(f"Card {instance_id!r} not found in zone")
+        remaining = tuple(c for c in self.cards if c.instance_id != instance_id)
+        return DeckZone(kind=self.kind, cards=remaining), card
 
     def __len__(self) -> int:
         return len(self.cards)
@@ -332,16 +334,14 @@ class MageKnight:
         A MageKnight is knocked out when wounds fill all hand slots.
         HINT: return self.wounds >= self.hand_size_max
         """
-        # TODO: implement
-        raise NotImplementedError
+        return self.wounds >= self.hand_size_max
 
     def total_card_count(self) -> int:
         """
         Total cards across ALL zones. Must stay constant — Invariant 6.1.
         HINT: sum up len(self.deck) + len(self.hand) + len(self.discard)
         """
-        # TODO: implement
-        raise NotImplementedError
+        return len(self.deck) + len(self.hand) + len(self.discard)
 
     def replace_zone(self, new_zone: DeckZone) -> MageKnight:
         """
@@ -356,8 +356,14 @@ class MageKnight:
                 return replace(self, deck=new_zone)
             # etc.
         """
-        # TODO: handle all zone kinds
-        raise NotImplementedError
+        from dataclasses import replace
+        if new_zone.kind == DeckZoneKind.DECK:
+            return replace(self, deck=new_zone)
+        if new_zone.kind == DeckZoneKind.HAND:
+            return replace(self, hand=new_zone)
+        if new_zone.kind == DeckZoneKind.DISCARD:
+            return replace(self, discard=new_zone)
+        raise ValueError(f"Unsupported zone kind: {new_zone.kind}")
 
 
 @dataclass(frozen=True)

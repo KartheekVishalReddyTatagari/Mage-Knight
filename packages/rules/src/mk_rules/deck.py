@@ -29,8 +29,9 @@ def shuffle_deck(zone: DeckZone, rng: Rng) -> DeckZone:
     Because rng is seeded per session — so the server can always replay
     the exact same shuffle from the same seed. (See ADR-0005)
     """
-    # TODO: implement
-    raise NotImplementedError
+    cards = list(zone.cards)
+    rng.shuffle(cards)
+    return DeckZone(kind=zone.kind, cards=tuple(cards))
 
 
 def draw_card(mk: MageKnight, rng: Rng) -> tuple[MageKnight, CardInstance]:
@@ -52,8 +53,15 @@ def draw_card(mk: MageKnight, rng: Rng) -> tuple[MageKnight, CardInstance]:
     5. Return replace(mk, deck=new_deck, hand=new_hand), card
     """
     from dataclasses import replace
-    # TODO: implement steps 1–5
-    raise NotImplementedError
+    if mk.deck.is_empty() and not mk.discard.is_empty():
+        new_deck = shuffle_deck(mk.discard, rng)
+        mk = replace(mk, deck=new_deck, discard=DeckZone(DeckZoneKind.DISCARD, ()))
+    if mk.deck.is_empty():
+        raise ValueError("Deck is empty")
+    card = mk.deck.cards[0]
+    new_deck = DeckZone(DeckZoneKind.DECK, mk.deck.cards[1:])
+    new_hand = mk.hand.add(card)
+    return replace(mk, deck=new_deck, hand=new_hand), card
 
 
 def draw_to_hand(mk: MageKnight, rng: Rng) -> tuple[MageKnight, list[CardInstance]]:
@@ -72,8 +80,14 @@ def draw_to_hand(mk: MageKnight, rng: Rng) -> tuple[MageKnight, list[CardInstanc
                 break   # ran out of cards — stop drawing
         return mk, drawn
     """
-    # TODO: implement
-    raise NotImplementedError
+    drawn: list[CardInstance] = []
+    while len(mk.hand) < mk.hand_size_max:
+        try:
+            mk, card = draw_card(mk, rng)
+            drawn.append(card)
+        except ValueError:
+            break
+    return mk, drawn
 
 
 def discard_card(mk: MageKnight, instance_id: str) -> MageKnight:
@@ -87,8 +101,9 @@ def discard_card(mk: MageKnight, instance_id: str) -> MageKnight:
     3. return replace(mk, hand=new_hand, discard=new_discard)
     """
     from dataclasses import replace
-    # TODO: implement
-    raise NotImplementedError
+    new_hand, card = mk.hand.remove(instance_id)
+    new_discard = mk.discard.add(card)
+    return replace(mk, hand=new_hand, discard=new_discard)
 
 
 def enforce_hand_limit(mk: MageKnight, cards_to_discard: tuple[str, ...]) -> tuple[MageKnight, str | None]:

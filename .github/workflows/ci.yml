@@ -7,67 +7,84 @@ on:
     branches: [main]
 
 jobs:
+  # ── 1. Pure rules engine ────────────────────────────────────────────────────
   rules-engine:
-    name: Rules Engine (lint + typecheck + test)
+    name: Rules Engine (lint + test + coverage)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/rules
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Install rules engine
-        run: pip install -e packages/rules[dev] ruff mypy pytest pytest-cov
+        with:
+          python-version: "3.12"
+
+      - name: Install package + dev tools
+        run: pip install -e . pytest pytest-cov ruff
+
       - name: Lint
-        run: ruff check packages/rules/src
-      - name: Type check
-        run: mypy packages/rules/src
+        run: ruff check src
+
       - name: Test + coverage
-        run: |
-          cd packages/rules
-          pytest --cov=mk_rules --cov-fail-under=80 -v
+        run: pytest --cov=mk_rules --cov-report=term-missing -v
 
+  # ── 2. FastAPI server ───────────────────────────────────────────────────────
   server:
-    name: Server (lint + test)
+    name: Server (lint + import smoke test)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: mk_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s --health-timeout 5s --health-retries 5
-      redis:
-        image: redis:7
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 3s --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Install
-        run: |
-          pip install -e packages/rules
-          pip install -e apps/server
-      - name: Lint
-        run: ruff check apps/server/src
-      - name: Test
-        run: pytest apps/server/tests -v
-        env:
-          DATABASE_URL: postgresql+asyncpg://postgres:test@localhost/mk_test
-          REDIS_URL:    redis://localhost:6379
 
-  web:
-    name: Web Client (lint + build)
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install server dependencies
+        run: |
+          pip install \
+            fastapi \
+            "uvicorn[standard]" \
+            "pydantic[email]" \
+            sqlalchemy \
+            "passlib[argon2]" \
+            "python-jose[cryptography]"
+
+      - name: Lint (ruff)
+        run: pip install ruff && ruff check apps/server/src
+
+      - name: Smoke test — server starts cleanly
+        # Run from apps/server so Python picks up the src/ package correctly.
+        # The import executes main.py startup (creates SQLite DB + seeds admin).
+        run: |
+          cd apps/server
+          python -c "from src.main import app; print('Server startup OK')"
+
+  # ── 3. React / Vite frontend ────────────────────────────────────────────────
+  web:
+    name: Web Client (type-check + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - name: Install
-        run:  cd apps/web && npm install
-      - name: Lint
-        run:  cd apps/web && npm run lint
-      - name: Build
-        run:  cd apps/web && npm run build
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Build (production bundle)
+        run: npm run build

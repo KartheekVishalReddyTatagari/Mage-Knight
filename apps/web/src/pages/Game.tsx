@@ -6,6 +6,7 @@ import { CombatModal } from '../components/CombatModal'
 import { PlayerHUD } from '../components/PlayerHUD'
 import { TutorialModal } from '../components/TutorialModal'
 import { useGameStore } from '../store/gameStore'
+import { PvpChallengeScreen, PvpPickModal, PvpResultModal } from '../components/PvpModal'
 
 // ── Game Over ─────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ function GameOverScreen() {
 
 // ── Local co-op overlays ──────────────────────────────────────────────────────
 
-function LocalSetupOverlay({ onStart }: { onStart: (n1: string, n2: string) => void }) {
+function LocalSetupOverlay({ onStart, isPvp }: { onStart: (n1: string, n2: string) => void; isPvp: boolean }) {
   const [n1, setN1] = useState('Player 1')
   const [n2, setN2] = useState('Player 2')
   const inp: React.CSSProperties = {
@@ -84,10 +85,10 @@ function LocalSetupOverlay({ onStart }: { onStart: (n1: string, n2: string) => v
         padding: '44px 48px', textAlign: 'center', maxWidth: 380,
         boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
       }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🛡⚔🛡</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#e0e0ff', marginBottom: 6 }}>Local Co-op</div>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>{isPvp ? '⚔🔥⚔' : '🛡⚔🛡'}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#e0e0ff', marginBottom: 6 }}>{isPvp ? 'Local PvP' : 'Local Co-op'}</div>
         <div style={{ fontSize: 13, color: '#5050a0', marginBottom: 28 }}>
-          Two knights, one screen — take turns passing the device.
+          {isPvp ? 'Explore, grow stronger, then challenge each other to a duel!' : 'Two knights, one screen — take turns passing the device.'}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28, textAlign: 'left' }}>
           <div>
@@ -113,39 +114,50 @@ function LocalSetupOverlay({ onStart }: { onStart: (n1: string, n2: string) => v
   )
 }
 
-function PassDeviceOverlay({ seat, name, onReady }: { seat: 1 | 2; name: string; onReady: () => void }) {
+type PvpPhase = import('../store/gameStore').PvpCombat['phase'] | null
+
+function PassDeviceOverlay({ seat, name, pvpPhase, onReady }: {
+  seat: 1 | 2; name: string; pvpPhase: PvpPhase; onReady: () => void
+}) {
   const color = seat === 1 ? '#a855f7' : '#06b6d4'
   const icon  = seat === 1 ? '♞' : '♘'
+
+  // Context-sensitive messaging for PvP mid-turn handoffs
+  const { label, sub } = pvpPhase === 'DEFENDER_RESPONDS'
+    ? { label: 'Duel Challenge!',  sub: 'You have been challenged — read the offer carefully.' }
+    : pvpPhase === 'CHALLENGER_PICKS'
+    ? { label: 'Your Pick!',       sub: 'Choose your attack & block cards — keep them secret.' }
+    : pvpPhase === 'DEFENDER_PICKS'
+    ? { label: 'Your Turn to Pick!', sub: 'Challenger has locked in — now choose your cards.' }
+    : { label: `${name}'s Turn`, sub: "Make sure the other player isn't watching!" }
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: '#020210',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
-    }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#020210', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
       <div className="modal-in" style={{ textAlign: 'center', maxWidth: 340, padding: '0 24px' }}>
         <div style={{
           width: 80, height: 80, borderRadius: '50%',
           background: `radial-gradient(circle,${color}40,${color}10)`,
           border: `2px solid ${color}55`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 36, margin: '0 auto 24px',
-          boxShadow: `0 0 40px ${color}28`,
-        }}>{icon}</div>
-        <div style={{ fontSize: 12, color: '#3a3a6a', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
-          Player {seat}'s Turn
+          fontSize: 36, margin: '0 auto 24px', boxShadow: `0 0 40px ${color}28`,
+        }}>{pvpPhase ? '⚔' : icon}</div>
+        <div style={{ fontSize: 12, color: pvpPhase ? '#ef4444' : '#3a3a6a', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+          Hand to {name}
         </div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: '#e0e0ff', marginBottom: 14 }}>{name}</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: '#e0e0ff', marginBottom: 10 }}>{label}</div>
         <div style={{ fontSize: 13, color: '#4a4a7a', marginBottom: 36, lineHeight: 1.7 }}>
-          Hand the device to {name}.<br />
-          <span style={{ fontSize: 11, color: '#2a2a4a' }}>Make sure the other player isn't watching!</span>
+          {sub}
         </div>
         <button
           onClick={onReady}
           style={{
-            background: `linear-gradient(135deg,${color},${color}90)`,
+            background: pvpPhase
+              ? 'linear-gradient(135deg,#dc2626,#991b1b)'
+              : `linear-gradient(135deg,${color},${color}90)`,
             color: 'white', border: 'none', borderRadius: 12,
             padding: '16px 52px', fontSize: 16, fontWeight: 800,
             cursor: 'pointer', letterSpacing: '0.04em',
-            boxShadow: `0 4px 24px ${color}45`,
+            boxShadow: pvpPhase ? '0 4px 24px rgba(220,38,38,0.45)' : `0 4px 24px ${color}45`,
           }}
         >I'm Ready →</button>
       </div>
@@ -162,12 +174,14 @@ export default function GamePage() {
 
   const {
     setSession, gameOver, log,
-    initLocalCoop, confirmHandoff,
-    mode, pendingHandoff, activeSeat, localSeatNames,
+    initLocalCoop, initLocalPvp, confirmHandoff,
+    mode, localSubMode, pendingHandoff, activeSeat, localSeatNames,
+    pvpCombat, challengeCooldown, issueChallenge,
   } = useGameStore()
 
   const [showTutorial,   setShowTutorial]   = useState(false)
   const [localSetupDone, setLocalSetupDone] = useState(!isLocal)
+  const isPvp = searchParams.get('sub') === 'pvp'
 
   useEffect(() => {
     if (sessionId && !isLocal) setSession(sessionId)
@@ -204,14 +218,49 @@ export default function GamePage() {
       {gameOver && <GameOverScreen />}
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
 
-      {/* Local co-op overlays */}
+      {/* Local setup overlay */}
       {isLocal && !localSetupDone && (
-        <LocalSetupOverlay onStart={(n1, n2) => { initLocalCoop(n1, n2); setLocalSetupDone(true) }} />
+        <LocalSetupOverlay
+          isPvp={isPvp}
+          onStart={(n1, n2) => {
+            if (isPvp) initLocalPvp(n1, n2)
+            else initLocalCoop(n1, n2)
+            setLocalSetupDone(true)
+          }}
+        />
       )}
+
+      {/* PvP challenge button (shown during PvP turns, not during handoff or combat) */}
+      {mode === 'local' && localSubMode === 'pvp' && !pendingHandoff && !pvpCombat && (
+        <div style={{ position: 'fixed', bottom: 160, right: 16, zIndex: 50 }}>
+          <button
+            onClick={issueChallenge}
+            disabled={challengeCooldown > 0}
+            style={{
+              background: challengeCooldown > 0 ? 'rgba(100,100,100,0.12)' : 'linear-gradient(135deg,#dc2626,#991b1b)',
+              color: challengeCooldown > 0 ? '#4a4a6a' : 'white',
+              border: `1px solid ${challengeCooldown > 0 ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.5)'}`,
+              borderRadius: 12, padding: '10px 16px', cursor: challengeCooldown > 0 ? 'not-allowed' : 'pointer',
+              fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
+              boxShadow: challengeCooldown > 0 ? 'none' : '0 4px 20px rgba(220,38,38,0.4)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}
+          >
+            <span>⚔</span>
+            <span>{challengeCooldown > 0 ? `Duel (${challengeCooldown})` : 'Challenge!'}</span>
+          </button>
+        </div>
+      )}
+
+      {/* PvP modals */}
+      <PvpChallengeScreen />
+      <PvpPickModal />
+      <PvpResultModal />
       {mode === 'local' && pendingHandoff && (
         <PassDeviceOverlay
           seat={activeSeat}
           name={localSeatNames[activeSeat - 1]}
+          pvpPhase={pvpCombat?.phase ?? null}
           onReady={confirmHandoff}
         />
       )}

@@ -33,6 +33,25 @@ with engine.connect() as _conn:
     except Exception:
         pass  # column already exists
 
+# Seed / sync default admin account (admin@gmail.com / admin123)
+import uuid as _uuid
+from src.application.auth_service import pwd_context as _pwd
+_ADMIN_HASH = _pwd.hash("admin123")
+with engine.connect() as _conn:
+    _exists = _conn.execute(_text("SELECT id FROM users WHERE email='admin@gmail.com'")).fetchone()
+    if not _exists:
+        _conn.execute(_text(
+            "INSERT INTO users (id, email, username, password_hash, is_admin) "
+            "VALUES (:id, :email, :username, :hash, 1)"
+        ), {"id": str(_uuid.uuid4()), "email": "admin@gmail.com",
+            "username": "admin", "hash": _ADMIN_HASH, "email": "admin@gmail.com"})
+    else:
+        # Always sync password so changing it here takes effect immediately
+        _conn.execute(_text(
+            "UPDATE users SET password_hash=:hash, is_admin=1 WHERE email='admin@gmail.com'"
+        ), {"hash": _ADMIN_HASH})
+    _conn.commit()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

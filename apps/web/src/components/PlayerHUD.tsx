@@ -81,10 +81,11 @@ function PlayerPanel({
 export function PlayerHUD({ onTutorial }: Props) {
   const {
     fame, level, wounds, handSizeMax, playerPos, log,
-    mode, opponent, activeSeat, localSeatNames,
+    mode, localSubMode, opponent, activeSeat, localSeatNames, challengeCooldown,
   } = useGameStore()
 
   const isCoop      = mode === 'local'
+  const isPvp       = mode === 'local' && localSubMode === 'pvp'
   const myUsername  = mode === 'local' ? localSeatNames[activeSeat - 1] : 'You'
   const oppUsername = opponent?.username ?? localSeatNames[activeSeat === 1 ? 1 : 0]
 
@@ -98,14 +99,32 @@ export function PlayerHUD({ onTutorial }: Props) {
       boxShadow: '0 2px 20px rgba(0,0,0,0.4)',
       minHeight: 52,
     }}>
-      {/* Brand */}
-      <div style={{
-        fontWeight: 800, fontSize: 14,
-        background: 'linear-gradient(135deg,#a855f7,#7c3aed)',
-        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-        letterSpacing: '0.05em', whiteSpace: 'nowrap', flexShrink: 0,
-      }}>
-        ♞ MK
+      {/* Brand + mode badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div style={{
+          fontWeight: 800, fontSize: 14,
+          background: 'linear-gradient(135deg,#a855f7,#7c3aed)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          letterSpacing: '0.05em', whiteSpace: 'nowrap',
+        }}>
+          ♞ MK
+        </div>
+        {isPvp && (
+          <span style={{
+            fontSize: 9, padding: '1px 6px', borderRadius: 99, fontWeight: 800,
+            background: 'rgba(220,38,38,0.15)', color: '#f87171',
+            letterSpacing: '0.08em', border: '1px solid rgba(220,38,38,0.25)',
+          }}>
+            {challengeCooldown > 0 ? `PvP ⏳${challengeCooldown}` : 'PvP ⚔'}
+          </span>
+        )}
+        {isCoop && !isPvp && (
+          <span style={{
+            fontSize: 9, padding: '1px 6px', borderRadius: 99, fontWeight: 800,
+            background: 'rgba(52,211,153,0.1)', color: '#34d399',
+            letterSpacing: '0.08em', border: '1px solid rgba(52,211,153,0.2)',
+          }}>CO-OP</span>
+        )}
       </div>
 
       <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />

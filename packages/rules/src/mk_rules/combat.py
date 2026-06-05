@@ -51,8 +51,10 @@ def block_needed(enemies: tuple[EnemyUnit, ...]) -> int:
     HINT: FORTIFIED enemies need double block.
     Sum up: e.attack * 2 if FORTIFIED in e.abilities else e.attack
     """
-    # TODO: implement
-    raise NotImplementedError
+    return sum(
+        e.attack * 2 if ABILITY_FORTIFIED in e.abilities else e.attack
+        for e in enemies
+    )
 
 
 def compute_damage_to_player(
@@ -74,8 +76,11 @@ def compute_damage_to_player(
             unblocked *= 2
         return unblocked
     """
-    # TODO: implement
-    raise NotImplementedError
+    needed = block_needed(combat.defending_enemies)
+    unblocked = max(0, needed - total_block_played)
+    if any(ABILITY_BRUTAL in e.abilities for e in combat.defending_enemies):
+        unblocked *= 2
+    return unblocked
 
 
 def damage_to_wounds(damage: int, armor: int) -> int:
@@ -86,8 +91,7 @@ def damage_to_wounds(damage: int, armor: int) -> int:
 
     HINT: max(0, damage - armor)
     """
-    # TODO: implement
-    raise NotImplementedError
+    return max(0, damage - armor)
 
 
 def can_defeat_enemies(attack_total: int, enemies: tuple[EnemyUnit, ...]) -> bool:
@@ -98,8 +102,7 @@ def can_defeat_enemies(attack_total: int, enemies: tuple[EnemyUnit, ...]) -> boo
 
     HINT: return attack_total >= sum(e.armor for e in enemies)
     """
-    # TODO: implement
-    raise NotImplementedError
+    return attack_total >= sum(e.armor for e in enemies)
 
 
 def resolve_ranged_phase(combat: Combat, ranged_attack_played: int) -> Combat:
@@ -161,5 +164,11 @@ def next_phase(current: CombatPhase) -> CombatPhase:
             raise ValueError("Already at final phase")
         return phases[idx + 1]
     """
-    # TODO: implement
-    raise NotImplementedError
+    phases = [
+        CombatPhase.RANGED, CombatPhase.BLOCK,
+        CombatPhase.ATTACK, CombatPhase.DAMAGE, CombatPhase.DONE,
+    ]
+    idx = phases.index(current)
+    if idx + 1 >= len(phases):
+        raise ValueError(f"Already at final phase: {current}")
+    return phases[idx + 1]

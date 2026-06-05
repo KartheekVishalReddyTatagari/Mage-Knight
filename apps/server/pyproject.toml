@@ -7,13 +7,8 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "pydantic[email]>=2.7",
     "sqlalchemy>=2.0",
-    "alembic>=1.13",
-    "asyncpg>=0.29",         # async Postgres driver
-    "redis[asyncio]>=5.0",
     "passlib[argon2]>=1.7",
     "python-jose[cryptography]>=3.3",
-    "structlog>=24.0",
-    "mk-rules",              # our pure rules engine
 ]
 
 [tool.setuptools.packages.find]

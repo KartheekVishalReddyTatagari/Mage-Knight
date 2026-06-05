@@ -123,23 +123,24 @@ export default function LobbyPage() {
 
           <button
             onClick={() => navigate('/game/local?mode=local')}
-            style={{
-              flex: 1,
-              background: 'linear-gradient(135deg,rgba(168,85,247,0.08),rgba(52,211,153,0.04))',
-              border: '1px solid rgba(52,211,153,0.25)', borderRadius: 12,
-              padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
-              transition: 'border-color 0.15s, background 0.15s',
-            }}
+            style={{ flex: 1, background: 'linear-gradient(135deg,rgba(168,85,247,0.08),rgba(52,211,153,0.04))', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(52,211,153,0.55)')}
             onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(52,211,153,0.25)')}
           >
             <div style={{ fontSize: 24, marginBottom: 6 }}>🛡</div>
-            <div style={{ fontWeight: 700, color: '#34d399', fontSize: 15, marginBottom: 3 }}>
-              Local Co-op (same device)
-            </div>
-            <div style={{ fontSize: 12, color: '#1a4a3a' }}>
-              Pass-and-play — no internet required
-            </div>
+            <div style={{ fontWeight: 700, color: '#34d399', fontSize: 15, marginBottom: 3 }}>Local Co-op</div>
+            <div style={{ fontSize: 12, color: '#1a4a3a' }}>Explore together — pass-and-play</div>
+          </button>
+
+          <button
+            onClick={() => navigate('/game/local?mode=local&sub=pvp')}
+            style={{ flex: 1, background: 'linear-gradient(135deg,rgba(220,38,38,0.08),rgba(153,27,27,0.04))', border: '1px solid rgba(220,38,38,0.25)', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(220,38,38,0.55)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(220,38,38,0.25)')}
+          >
+            <div style={{ fontSize: 24, marginBottom: 6 }}>⚔</div>
+            <div style={{ fontWeight: 700, color: '#f87171', fontSize: 15, marginBottom: 3 }}>Local PvP</div>
+            <div style={{ fontSize: 12, color: '#4a1a1a' }}>Earn cards, then duel for glory!</div>
           </button>
         </div>
 
